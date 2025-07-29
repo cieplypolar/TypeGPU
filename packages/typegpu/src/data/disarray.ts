@@ -23,12 +23,27 @@ import type { AnyData, Disarray } from './dataTypes.ts';
  *
  * @param elementType The type of elements in the array.
  * @param count The number of elements in the array.
+ *
+ * If count is not specified, then partially applied function is returned.
  */
 export function disarrayOf<TElement extends AnyData>(
   elementType: TElement,
   count: number,
-): Disarray<TElement> {
-  return new DisarrayImpl(elementType, count);
+): Disarray<TElement>;
+
+export function disarrayOf<TElement extends AnyData>(
+  elementType: TElement,
+  count?: number | undefined,
+): (count: number) => Disarray<TElement>;
+
+export function disarrayOf<TElement extends AnyData>(
+  elementType: TElement,
+  count?: number | undefined,
+): Disarray<TElement> | ((count: number) => Disarray<TElement>) {
+  if (count !== undefined) {
+    return new DisarrayImpl(elementType, count);
+  }
+  return (n: number) => new DisarrayImpl(elementType, n);
 }
 
 // --------------

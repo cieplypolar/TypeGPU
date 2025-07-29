@@ -28,12 +28,27 @@ import type { AnyWgslData, BaseData, WgslArray } from './wgslTypes.ts';
  *
  * @param elementType The type of elements in the array.
  * @param elementCount The number of elements in the array.
+ *
+ * If elementCount is not specified, then partially applied function is returned.
  */
 export function arrayOf<TElement extends AnyWgslData>(
   elementType: TElement,
   elementCount: number,
-): WgslArray<TElement> {
-  return new WgslArrayImpl(elementType, elementCount);
+): WgslArray<TElement>;
+
+export function arrayOf<TElement extends AnyWgslData>(
+  elementType: TElement,
+  elementCount?: undefined,
+): (elementCount: number) => WgslArray<TElement>;
+
+export function arrayOf<TElement extends AnyWgslData>(
+  elementType: TElement,
+  elementCount?: number | undefined,
+): WgslArray<TElement> | ((elementCount: number) => WgslArray<TElement>) {
+  if (elementCount !== undefined) {
+    return new WgslArrayImpl(elementType, elementCount);
+  }
+  return (n: number) => new WgslArrayImpl(elementType, n);
 }
 
 // --------------

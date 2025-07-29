@@ -1,6 +1,7 @@
 import tgpu from "typegpu";
 import * as d from "typegpu/data";
 import * as std from "typegpu/std";
+import { perlin3d } from "@typegpu/noise";
 
 const canvas = document.querySelector("canvas") as HTMLCanvasElement;
 const context = canvas.getContext("webgpu") as GPUCanvasContext;
@@ -33,20 +34,52 @@ const vertexMain = tgpu["~unstable"].vertexFn({
 const peanut = d.vec3f(0.75, 0.57, 0.31);
 const jam = d.vec3f(0.73, 0.16, 0.09);
 
-const normalizedSin = tgpu.fn(
-  [d.f32],
+const noise = tgpu.fn(
+  [d.vec2f, d.f32],
   d.f32,
-)((x) => {
-  return std.sin(x) * 0.5 - 0.5;
+)((p, t) => {
+  return perlin3d.sample(d.vec3f(p, t));
+});
+
+const numOctaves = 4;
+
+const fbm = tgpu.fn(
+  [d.vec2f, d.f32, d.f32],
+  d.f32,
+)((uv, t, H) => {
+  // H may be hardcoded to 1
+  const G = std.exp2(-H);
+  let f = d.f32(1.0);
+  let a = d.f32(1.0);
+  let R = d.f32(0.0);
+  for (let i = 0; i < numOctaves; i++) {
+    R += a * noise(std.mul(uv, d.vec2f(f)), t);
+    f *= 2.0;
+    a *= G;
+  }
+  return d.f32(R);
+});
+
+const domainWarp = tgpu.fn(
+  [d.vec2f, d.f32],
+  d.f32,
+)((uv, t) => {
+  let fbm1 = fbm(std.add(uv, d.vec2f(0)), t, 1);
+  let fbm2 = fbm(std.add(uv, d.vec2f(5.1, 5.7)), t, 1);
+  return fbm(d.vec2f(fbm1, fbm2), t, 1);
 });
 
 const fragmentMain = tgpu["~unstable"].fragmentFn({
   in: { uv: d.vec2f },
   out: d.vec4f,
 })((input) => {
-  const uv = std.sub(std.mul(input.uv, 2), 1);
+  let uv = std.sub(std.mul(input.uv, 2), 1);
   uv.x *= resolution.$.x / resolution.$.y;
-  return d.vec4f(std.mix(peanut, jam, uv.x / 2.0 + 0.5), 1);
+  uv = std.mul(uv, 2.0); // zoom out
+
+  let color = std.mix(jam, peanut, domainWarp(uv, time.$));
+  // return d.vec4f(color, 1);
+  return d.vec4f(d.vec3f(fbm(uv, time.$, 1)), 1);
 });
 
 const renderPipeline = root["~unstable"]
@@ -72,7 +105,9 @@ function run(timestamp: number) {
 
 animationFrame = requestAnimationFrame(run);
 
+// #region Example controls and cleanup
 export function onCleanup() {
   cancelAnimationFrame(animationFrame);
   root.destroy();
 }
+// #endregion

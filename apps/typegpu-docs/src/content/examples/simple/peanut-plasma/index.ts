@@ -34,14 +34,12 @@ const vertexMain = tgpu['~unstable'].vertexFn({
 });
 
 // == INTERESTING PART (FRAGMENT SHADER) ==
-const peanut = d.vec3f(0.76, 0.58, 0.29);
-const jam = d.vec3f(0.3, 0, 0);
 
 const noise = tgpu.fn(
   [d.vec2f, d.f32],
   d.f32,
 )((p, t) => {
-  return perlin3d.sample(d.vec3f(p, t * 0.1)) + 0.25; // perlin noise wa too dark
+  return perlin3d.sample(d.vec3f(p, t * 0.1)) + 0.25; // perlin noise was too dark
 });
 
 const numOctaves = 4;
@@ -49,36 +47,41 @@ const numOctaves = 4;
 const fbm = tgpu.fn(
   [d.vec2f, d.f32],
   d.f32,
-)((uv, t) => {
-  let f = d.f32(1.0);
-  let a = d.f32(1.0);
-  let R = d.f32(0.0);
+)((p, t) => {
+  let freq = d.f32(1.0);
+  let ampl = d.f32(1.0);
+  let result = d.f32(0.0);
   for (let i = 0; i < numOctaves; i++) {
-    R += a * noise(std.mul(uv, f), t);
-    f *= 2.0;
-    a *= 0.5;
+    result += ampl * noise(std.mul(p, freq), t);
+    freq *= 2.0;
+    ampl *= 0.5;
   }
-  return d.f32(R);
+  return d.f32(result);
 });
 
 const domainWarp = tgpu.fn(
   [d.vec2f, d.f32],
   d.f32,
-)((uv, t) => {
+)((p, t) => {
+  // fractional brownian motion
   const q = d.vec2f(
-    fbm(std.add(uv, d.vec2f(0, 0)), t),
-    fbm(std.add(uv, d.vec2f(5.2, 1.3)), t),
+    fbm(std.add(p, d.vec2f(0, 0)), t),
+    fbm(std.add(p, d.vec2f(5.2, 1.3)), t),
   );
 
+  // first domain warp
   const r = d.vec2f(
-    fbm(std.add(std.add(uv, std.mul(2, q)), d.vec2f(1.7, 9.2)), t),
-    fbm(std.add(std.add(uv, std.mul(2, q)), d.vec2f(8.3, 2.8)), t),
+    fbm(std.add(std.add(p, std.mul(2, q)), d.vec2f(1.7, 9.2)), t),
+    fbm(std.add(std.add(p, std.mul(2, q)), d.vec2f(8.3, 2.8)), t),
   );
 
-  return fbm(std.add(uv, std.mul(2, r)), t);
+  // second domain warp
+  return fbm(std.add(p, std.mul(2, r)), t);
 });
 
 const zoom = d.f32(2.5); // zoom out
+const peanut = d.vec3f(0.76, 0.58, 0.29);
+const jam = d.vec3f(0.3, 0, 0);
 
 const fragmentMain = tgpu['~unstable'].fragmentFn({
   in: { uv: d.vec2f },

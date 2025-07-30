@@ -78,7 +78,7 @@ const domainWarp = tgpu.fn(
   return fbm(std.add(uv, std.mul(2, r)), t);
 });
 
-const zoom = d.f32(2.0); // zoom out
+const zoom = d.f32(2.5); // zoom out
 
 const fragmentMain = tgpu['~unstable'].fragmentFn({
   in: { uv: d.vec2f },

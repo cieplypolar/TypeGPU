@@ -1,10 +1,11 @@
-import tgpu from "typegpu";
-import * as d from "typegpu/data";
-import * as std from "typegpu/std";
-import { perlin3d } from "@typegpu/noise";
+import tgpu from 'typegpu';
+import * as d from 'typegpu/data';
+import * as std from 'typegpu/std';
+import { perlin3d } from '@typegpu/noise';
 
-const canvas = document.querySelector("canvas") as HTMLCanvasElement;
-const context = canvas.getContext("webgpu") as GPUCanvasContext;
+// == INIT ==
+const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+const context = canvas.getContext('webgpu') as GPUCanvasContext;
 const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
 
 const root = await tgpu.init();
@@ -12,13 +13,14 @@ const root = await tgpu.init();
 context.configure({
   device: root.device,
   format: presentationFormat,
-  alphaMode: "premultiplied",
+  alphaMode: 'premultiplied',
 });
 
 const time = root.createUniform(d.f32);
 const resolution = root.createUniform(d.vec2f);
 
-const vertexMain = tgpu["~unstable"].vertexFn({
+// == VERTEX SHADER ==
+const vertexMain = tgpu['~unstable'].vertexFn({
   in: { idx: d.builtin.vertexIndex },
   out: { pos: d.builtin.position, uv: d.vec2f },
 })(({ idx }) => {
@@ -31,31 +33,30 @@ const vertexMain = tgpu["~unstable"].vertexFn({
   };
 });
 
-const peanut = d.vec3f(0.75, 0.57, 0.31);
-const jam = d.vec3f(0.73, 0.16, 0.09);
+// == INTERESTING PART (FRAGMENT SHADER) ==
+const peanut = d.vec3f(0.76, 0.58, 0.29);
+const jam = d.vec3f(0.3, 0, 0);
 
 const noise = tgpu.fn(
   [d.vec2f, d.f32],
   d.f32,
 )((p, t) => {
-  return perlin3d.sample(d.vec3f(p, t));
+  return perlin3d.sample(d.vec3f(p, t * 0.1)) + 0.25; // perlin noise wa too dark
 });
 
 const numOctaves = 4;
 
 const fbm = tgpu.fn(
-  [d.vec2f, d.f32, d.f32],
+  [d.vec2f, d.f32],
   d.f32,
-)((uv, t, H) => {
-  // H may be hardcoded to 1
-  const G = std.exp2(-H);
+)((uv, t) => {
   let f = d.f32(1.0);
   let a = d.f32(1.0);
   let R = d.f32(0.0);
   for (let i = 0; i < numOctaves; i++) {
-    R += a * noise(std.mul(uv, d.vec2f(f)), t);
+    R += a * noise(std.mul(uv, f), t);
     f *= 2.0;
-    a *= G;
+    a *= 0.5;
   }
   return d.f32(R);
 });
@@ -64,25 +65,42 @@ const domainWarp = tgpu.fn(
   [d.vec2f, d.f32],
   d.f32,
 )((uv, t) => {
-  let fbm1 = fbm(std.add(uv, d.vec2f(0)), t, 1);
-  let fbm2 = fbm(std.add(uv, d.vec2f(5.1, 5.7)), t, 1);
-  return fbm(d.vec2f(fbm1, fbm2), t, 1);
+  const q = d.vec2f(
+    fbm(std.add(uv, d.vec2f(0, 0)), t),
+    fbm(std.add(uv, d.vec2f(5.2, 1.3)), t),
+  );
+
+  const r = d.vec2f(
+    fbm(std.add(std.add(uv, std.mul(2, q)), d.vec2f(1.7, 9.2)), t),
+    fbm(std.add(std.add(uv, std.mul(2, q)), d.vec2f(8.3, 2.8)), t),
+  );
+
+  return fbm(std.add(uv, std.mul(2, r)), t);
 });
 
-const fragmentMain = tgpu["~unstable"].fragmentFn({
+const zoom = d.f32(2.0); // zoom out
+
+const fragmentMain = tgpu['~unstable'].fragmentFn({
   in: { uv: d.vec2f },
   out: d.vec4f,
 })((input) => {
-  let uv = std.sub(std.mul(input.uv, 2), 1);
-  uv.x *= resolution.$.x / resolution.$.y;
-  uv = std.mul(uv, 2.0); // zoom out
+  let scaledUV = std.sub(std.mul(input.uv, 2), 1);
+  scaledUV.x *= resolution.$.x / resolution.$.y;
 
-  let color = std.mix(jam, peanut, domainWarp(uv, time.$));
-  // return d.vec4f(color, 1);
-  return d.vec4f(d.vec3f(fbm(uv, time.$, 1)), 1);
+  scaledUV = std.mul(scaledUV, zoom);
+
+  const color = std.mix(
+    peanut,
+    jam,
+    std.clamp(domainWarp(scaledUV, time.$), 0, 1),
+  );
+  return d.vec4f(color, 1);
 });
 
-const renderPipeline = root["~unstable"]
+// == RENDER PIPELINE ==
+const cache = perlin3d.staticCache({ root, size: d.vec3u(7, 7, 7) });
+const renderPipeline = root['~unstable']
+  .pipe(cache.inject())
   .withVertex(vertexMain, {})
   .withFragment(fragmentMain, { format: presentationFormat })
   .createPipeline();
@@ -95,8 +113,8 @@ function run(timestamp: number) {
   renderPipeline
     .withColorAttachment({
       view: context.getCurrentTexture().createView(),
-      loadOp: "clear",
-      storeOp: "store",
+      loadOp: 'clear',
+      storeOp: 'store',
     })
     .draw(3);
 

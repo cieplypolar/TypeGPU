@@ -513,15 +513,17 @@ export function convertToCommonType(
   ctx: GenerationCtx,
   values: Snippet[],
   restrictTo?: AnyData[],
+  concretizeTypes = false,
   verbose = true,
 ): Snippet[] | undefined {
-  const types = values.map((value) => value.dataType);
+  let types = values.map((value) => value.dataType);
 
   if (types.some((type) => type === UnknownData)) {
     return undefined;
   }
-
-  const concretizedTypes = (types as AnyWgslData[]).map(concretize);
+  if (concretizeTypes) {
+    types = (types as AnyWgslData[]).map(concretize);
+  }
 
   if (DEV && verbose && Array.isArray(restrictTo) && restrictTo.length === 0) {
     console.warn(
@@ -530,7 +532,7 @@ export function convertToCommonType(
   }
 
   const conversion = getBestConversion(
-    concretizedTypes as AnyData[],
+    types as AnyData[],
     restrictTo,
   );
   if (!conversion) {

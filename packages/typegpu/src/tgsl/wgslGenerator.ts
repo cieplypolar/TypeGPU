@@ -181,6 +181,7 @@ export function generateExpression(
       ctx,
       [lhsExpr, rhsExpr],
       op === '/' ? [f32, f16] : forcedType,
+      /* concretizeTypes */ op === '/',
       /* verbose */ op !== '/',
     ) as
       | [Snippet, Snippet]

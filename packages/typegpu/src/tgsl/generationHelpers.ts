@@ -521,13 +521,18 @@ export function convertToCommonType(
     return undefined;
   }
 
+  const concretizedTypes = (types as AnyWgslData[]).map(concretize);
+
   if (DEV && verbose && Array.isArray(restrictTo) && restrictTo.length === 0) {
     console.warn(
       'convertToCommonType was called with an empty restrictTo array, which prevents any conversions from being made. If you intend to allow all conversions, pass undefined instead. If this was intended call the function conditionally since the result will always be undefined.',
     );
   }
 
-  const conversion = getBestConversion(types as AnyData[], restrictTo);
+  const conversion = getBestConversion(
+    concretizedTypes as AnyData[],
+    restrictTo,
+  );
   if (!conversion) {
     return undefined;
   }

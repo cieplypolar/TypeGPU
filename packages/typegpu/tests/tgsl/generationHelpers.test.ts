@@ -452,6 +452,20 @@ describe('generationHelpers', () => {
       );
       expect(result).toBeUndefined();
     });
+
+    it('converts abstractInts to F32 when divided', () => {
+      const result = convertToCommonType(
+        mockCtx,
+        [snippetAbsInt, snippetAbsInt],
+        [f32, f16],
+      );
+      expect(result).toBeDefined();
+      expect(result?.length).toBe(2);
+      expect(result?.[0]?.dataType).toBe(f32);
+      expect(result?.[0]?.value).toBe('f32(1)');
+      expect(result?.[1]?.dataType).toBe(f32);
+      expect(result?.[1]?.value).toBe('f32(1)');
+    });
   });
 
   describe('convertStructValues', () => {

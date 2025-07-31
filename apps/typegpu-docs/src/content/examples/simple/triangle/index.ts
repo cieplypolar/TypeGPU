@@ -67,3 +67,21 @@ setTimeout(() => {
 export function onCleanup() {
   root.destroy();
 }
+
+const buf = root.createBuffer(d.arrayOf(d.f32, 1)).$usage('storage');
+const val = buf.as('mutable');
+
+const f = tgpu['~unstable'].computeFn({
+  in: { gid: d.builtin.globalInvocationId },
+  workgroupSize: [1],
+})((input) => {
+  val.$[0] = 1 / 5;
+});
+
+const p = root['~unstable'].withCompute(f).createPipeline();
+
+p.dispatchWorkgroups(1);
+
+const x = await buf.read();
+console.log('Div on gpu: ', x);
+console.log('Div in js: ', 1 / 5);

@@ -191,6 +191,8 @@ export function generateExpression(
     const rhsStr = ctx.resolve(convRhs.value);
     const type = operatorToType(convLhs.dataType, op, convRhs.dataType);
 
+    console.log(`${lhsStr} ${op} ${rhsStr}`);
+
     return snip(
       parenthesizedOps.includes(op)
         ? `(${lhsStr} ${op} ${rhsStr})`

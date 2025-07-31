@@ -253,8 +253,12 @@ function getAutoConversionRank(
     if (trueDst.type === 'i32') return { rank: 3, action: 'none' };
     if (trueDst.type === 'u32') return { rank: 4, action: 'none' };
     if (trueDst.type === 'abstractFloat') return { rank: 5, action: 'none' };
-    if (trueDst.type === 'f32') return { rank: 6, action: 'none' };
-    if (trueDst.type === 'f16') return { rank: 7, action: 'none' };
+    if (trueDst.type === 'f32') {
+      return { rank: 6, action: 'cast', targetType: f32 };
+    }
+    if (trueDst.type === 'f16') {
+      return { rank: 7, action: 'cast', targetType: f16 };
+    }
   }
 
   if (isVec(trueSrc) && isVec(trueDst)) {
@@ -331,6 +335,7 @@ function getConversionRank(
   allowImplicit: boolean,
 ): ConversionRankInfo {
   const autoRank = getAutoConversionRank(src, dest);
+  console.log('src:', src.type, 'dest:', dest.type, 'rank:', autoRank);
   if (autoRank.rank < Number.POSITIVE_INFINITY) {
     return autoRank;
   }
@@ -390,8 +395,9 @@ function findBestType(
   if (!bestType) {
     return undefined;
   }
-
+  console.log('best type', bestType.type, 'with sum', minSum);
   const bestDetails = conversionDetails.get(bestType) as ConversionRankInfo[];
+  console.log('best details', bestDetails);
   const actions: ConversionResultAction[] = bestDetails.map(
     (detail, index) => ({
       sourceIndex: index,
@@ -425,12 +431,15 @@ export function getBestConversion(
 ): ConversionResult | undefined {
   if (types.length === 0) return undefined;
 
+  console.log('target types', targetTypes?.map((t) => t.type));
+
   const uniqueTypes = [...new Set(types.map(undecorate))];
   const uniqueTargetTypes = targetTypes
     ? [...new Set(targetTypes.map(undecorate))]
     : uniqueTypes;
 
   const explicitResult = findBestType(types, uniqueTargetTypes, false);
+  console.log('explicit result', explicitResult);
   if (explicitResult) {
     return explicitResult;
   }
@@ -521,16 +530,24 @@ export function convertToCommonType(
     return undefined;
   }
 
+  const concretizedTypes = (types as AnyWgslData[]).map(concretize);
+  console.log(concretizedTypes);
+
   if (DEV && verbose && Array.isArray(restrictTo) && restrictTo.length === 0) {
     console.warn(
       'convertToCommonType was called with an empty restrictTo array, which prevents any conversions from being made. If you intend to allow all conversions, pass undefined instead. If this was intended call the function conditionally since the result will always be undefined.',
     );
   }
 
-  const conversion = getBestConversion(types as AnyData[], restrictTo);
+  const conversion = getBestConversion(
+    types as AnyData[],
+    restrictTo,
+  );
   if (!conversion) {
     return undefined;
   }
+
+  console.log('Conversion', conversion);
 
   if (DEV && verbose && conversion.hasImplicitConversions) {
     console.warn(

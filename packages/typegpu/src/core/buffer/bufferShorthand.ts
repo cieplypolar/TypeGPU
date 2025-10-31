@@ -1,8 +1,14 @@
+import type { ResolvedSnippet } from '../../data/snippet.ts';
 import type { BaseData } from '../../data/wgslTypes.ts';
 import type { StorageFlag } from '../../extension.ts';
 import { setName, type TgpuNamable } from '../../shared/meta.ts';
 import type { Infer, InferGPU, InferPartial } from '../../shared/repr.ts';
-import { $getNameForward, $internal } from '../../shared/symbols.ts';
+import {
+  $getNameForward,
+  $gpuValueOf,
+  $internal,
+  $resolve,
+} from '../../shared/symbols.ts';
 import type { ResolutionCtx, SelfResolvable } from '../../types.ts';
 import type { TgpuBuffer, UniformFlag } from './buffer.ts';
 import type { TgpuBufferUsage } from './bufferUsage.ts';
@@ -18,6 +24,10 @@ interface TgpuBufferShorthandBase<TData extends BaseData> extends TgpuNamable {
   write(data: Infer<TData>): void;
   writePartial(data: InferPartial<TData>): void;
   read(): Promise<Infer<TData>>;
+  // ---
+
+  // Accessible on the GPU
+  readonly [$gpuValueOf]: InferGPU<TData>;
   // ---
 }
 
@@ -105,6 +115,10 @@ export class TgpuBufferShorthandImpl<
     return this.buffer.read();
   }
 
+  get [$gpuValueOf](): InferGPU<TData> {
+    return this.#usage.$;
+  }
+
   get $(): InferGPU<TData> {
     return this.#usage.$;
   }
@@ -113,7 +127,7 @@ export class TgpuBufferShorthandImpl<
     return this.$;
   }
 
-  '~resolve'(ctx: ResolutionCtx): string {
+  [$resolve](ctx: ResolutionCtx): ResolvedSnippet {
     return ctx.resolve(this.#usage);
   }
 }

@@ -10,6 +10,9 @@ import starlightTypeDoc, { typeDocSidebarGroup } from 'starlight-typedoc';
 import typegpu from 'unplugin-typegpu/rollup';
 import { imagetools } from 'vite-imagetools';
 import wasm from 'vite-plugin-wasm';
+import basicSsl from '@vitejs/plugin-basic-ssl';
+import rehypeMathJax from 'rehype-mathjax';
+import remarkMath from 'remark-math';
 
 /**
  * @template T
@@ -24,24 +27,55 @@ const DEV = import.meta.env.DEV;
 export default defineConfig({
   site: 'https://docs.swmansion.com',
   base: 'TypeGPU',
+  server: {
+    // Required for '@rolldown/browser' to work in dev mode.
+    // Since the service worker is hosted on the /TypeGPU path,
+    // fetches from /@fs/ fail due to CORS. This fixes that.
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+      'Cross-Origin-Opener-Policy': 'same-origin',
+    },
+  },
+  markdown: {
+    remarkPlugins: [remarkMath],
+    rehypePlugins: [rehypeMathJax],
+  },
   vite: {
+    define: {
+      // Required for '@rolldown/browser' to work.
+      'process.env.NODE_DEBUG_NATIVE': '""',
+    },
+    optimizeDeps: {
+      exclude: ['@rolldown/browser'],
+    },
     // Allowing query params, for invalidation
     plugins: [
       wasm(),
       tailwindVite(),
       typegpu({ include: [/\.m?[jt]sx?/] }),
-      /** @type {any} */ imagetools(),
+      imagetools(),
+      {
+        ...basicSsl(),
+        apply(_, { mode }) {
+          return DEV && mode === 'https';
+        },
+      },
     ],
     ssr: {
       noExternal: [
         'wgsl-wasm-transpiler-bundler',
+        '@rolldown/browser',
       ],
     },
   },
   integrations: [
     starlight({
       title: 'TypeGPU',
-      customCss: ['./src/tailwind.css', './src/fonts/font-face.css'],
+      customCss: [
+        './src/tailwind.css',
+        './src/fonts/font-face.css',
+        './src/mathjax.css',
+      ],
       plugins: stripFalsy([
         starlightBlog({
           navigation: 'none',
@@ -98,11 +132,6 @@ export default defineConfig({
               slug: 'fundamentals/functions',
             },
             {
-              label: 'TGSL',
-              slug: 'fundamentals/tgsl',
-              badge: { text: 'new' },
-            },
-            {
               label: 'Pipelines',
               slug: 'fundamentals/pipelines',
               badge: { text: 'new' },
@@ -110,6 +139,16 @@ export default defineConfig({
             {
               label: 'Buffers',
               slug: 'fundamentals/buffers',
+            },
+            {
+              label: 'Textures',
+              slug: 'fundamentals/textures',
+              badge: { text: 'new' },
+            },
+            {
+              label: 'Variables',
+              slug: 'fundamentals/variables',
+              badge: { text: 'new' },
             },
             {
               label: 'Data Schemas',
@@ -142,6 +181,11 @@ export default defineConfig({
               slug: 'fundamentals/slots',
               badge: { text: 'new' },
             },
+            {
+              label: 'Utilities',
+              slug: 'fundamentals/utils',
+              badge: { text: 'new' },
+            },
             // {
             //   label: 'Basic Principles',
             //   slug: 'guides/basic-principles',
@@ -156,18 +200,18 @@ export default defineConfig({
             // },
           ]),
         },
-        DEV && {
+        {
           label: 'Ecosystem',
           items: stripFalsy([
             {
               label: '@typegpu/noise',
               slug: 'ecosystem/typegpu-noise',
             },
-            {
+            DEV && {
               label: '@typegpu/color',
               slug: 'ecosystem/typegpu-color',
             },
-            {
+            DEV && {
               label: 'Third-party',
               slug: 'ecosystem/third-party',
             },
@@ -226,10 +270,6 @@ export default defineConfig({
         {
           label: 'Reference',
           items: stripFalsy([
-            {
-              label: 'Data Schema Cheatsheet',
-              slug: 'reference/data-schema-cheatsheet',
-            },
             DEV && {
               label: 'Naming Convention',
               slug: 'reference/naming-convention',

@@ -20,7 +20,8 @@ import {
 } from '../src/data/index.ts';
 import tgpu from '../src/index.ts';
 import type { Infer } from '../src/shared/repr.ts';
-import { parse, parseResolved } from './utils/parseResolved.ts';
+import { asWgsl } from './utils/parseResolved.ts';
+import { frexp } from '../src/std/numeric.ts';
 
 describe('struct', () => {
   it('aligns struct properties when measuring', () => {
@@ -308,20 +309,20 @@ describe('struct', () => {
       const defaultValue = Outer();
     });
 
-    expect(parseResolved({ testFunction })).toBe(parse(`
-          struct Nested {
-            prop1: vec2f,
-            prop2: u32,
-          }
-  
-          struct Outer {
-            nested: Nested,
-          }
-  
-          fn testFunction() {
-            var defaultValue = Outer();
-          }
-        `));
+    expect(asWgsl(testFunction)).toMatchInlineSnapshot(`
+      "struct Nested {
+        prop1: vec2f,
+        prop2: u32,
+      }
+
+      struct Outer {
+        nested: Nested,
+      }
+
+      fn testFunction() {
+        var defaultValue = Outer();
+      }"
+    `);
   });
 
   it('generates correct code when struct clone is used', () => {
@@ -336,19 +337,18 @@ describe('struct', () => {
       return;
     });
 
-    expect(parseResolved({ testFn })).toBe(
-      parse(`
-        struct TestStruct {
-          x: u32,
-          y: f32,
-        }
-  
-        fn testFn() {
-          var myStruct = TestStruct(1, 2);
-          var myClone = myStruct;
-          return;
-        }`),
-    );
+    expect(asWgsl(testFn)).toMatchInlineSnapshot(`
+      "struct TestStruct {
+        x: u32,
+        y: f32,
+      }
+
+      fn testFn() {
+        var myStruct = TestStruct(1, 2);
+        var myClone = myStruct;
+        return;
+      }"
+    `);
   });
 
   it('generates correct code when complex struct clone is used', () => {
@@ -363,18 +363,34 @@ describe('struct', () => {
       return;
     });
 
-    expect(parseResolved({ testFn })).toBe(
-      parse(`
-        struct TestStruct {
-          x: u32,
-          y: f32,
-        }
-  
-        fn testFn() {
-          var myStructs = array<TestStruct, 1>(TestStruct(1, 2));
-          var myClone = myStructs[0];
-          return;
-        }`),
-    );
+    expect(asWgsl(testFn)).toMatchInlineSnapshot(`
+      "struct TestStruct {
+        x: u32,
+        y: f32,
+      }
+
+      fn testFn() {
+        var myStructs = array<TestStruct, 1>(TestStruct(1, 2));
+        var myClone = myStructs[0];
+        return;
+      }"
+    `);
+  });
+});
+
+describe('abstruct', () => {
+  it('gets correctly resolved when returned from an std function', () => {
+    const testFn = tgpu.fn([f32], f32)((x) => {
+      const result = frexp(x);
+      // It should know that exp is an u32 and cast it to f32
+      return result.exp;
+    });
+
+    expect(asWgsl(testFn)).toMatchInlineSnapshot(`
+      "fn testFn(x: f32) -> f32 {
+        var result = frexp(x);
+        return f32(result.exp);
+      }"
+    `);
   });
 });

@@ -1,4 +1,5 @@
 import type { TgpuNamable } from '../shared/meta.ts';
+import { isMarkedInternal } from '../shared/symbols.ts';
 import type {
   ExtractInvalidSchemaError,
   Infer,
@@ -23,13 +24,21 @@ import type {
   $validUniformSchema,
   $validVertexSchema,
 } from '../shared/symbols.ts';
-import { $internal, $wgslDataType } from '../shared/symbols.ts';
+import { $internal } from '../shared/symbols.ts';
 import type { Prettify, SwapNever } from '../shared/utilityTypes.ts';
+import type { DualFn } from './dualFn.ts';
+import type {
+  WgslExternalTexture,
+  WgslStorageTexture,
+  WgslTexture,
+} from './texture.ts';
+import type { WgslComparisonSampler, WgslSampler } from './sampler.ts';
 
 type DecoratedLocation<T extends BaseData> = Decorated<T, Location[]>;
 
 export interface BaseData {
-  readonly [$internal]: true;
+  // biome-ignore lint/suspicious/noExplicitAny: we sometimes house functions on the internal object, so the type needs to be wider
+  readonly [$internal]: true | Record<string, any>;
   readonly type: string;
   readonly [$repr]: unknown;
 }
@@ -79,12 +88,6 @@ export interface matInfixNotation<T extends AnyMatInstance> {
   mul(other: T): T;
 }
 
-export function hasInternalDataType(
-  value: unknown,
-): value is { [$wgslDataType]: BaseData } {
-  return !!(value as { [$wgslDataType]: BaseData })?.[$wgslDataType];
-}
-
 /**
  * Represents a 64-bit integer.
  */
@@ -118,6 +121,9 @@ export interface Void extends BaseData {
 export const Void = {
   [$internal]: true,
   type: 'void',
+  toString() {
+    return 'void';
+  },
 } as Void;
 
 // #region Instance Types
@@ -649,11 +655,26 @@ export interface v4b extends Tuple4<boolean>, Swizzle4<v2b, v3b, v4b> {
 
 export type AnyFloat32VecInstance = v2f | v3f | v4f;
 
+export type AnyFloat16VecInstance = v2h | v3h | v4h;
+
 export type AnyFloatVecInstance = v2f | v2h | v3f | v3h | v4f | v4h;
+
+export type AnyUnsignedVecInstance = v2u | v3u | v4u;
 
 export type AnyIntegerVecInstance = v2i | v2u | v3i | v3u | v4i | v4u;
 
 export type AnyBooleanVecInstance = v2b | v3b | v4b;
+
+export type AnySignedVecInstance =
+  | v2i
+  | v2f
+  | v2h
+  | v3i
+  | v3f
+  | v3h
+  | v4i
+  | v4f
+  | v4h;
 
 export type AnyNumericVec2Instance = v2f | v2h | v2i | v2u;
 export type AnyNumericVec3Instance = v3f | v3h | v3i | v3u;
@@ -759,7 +780,7 @@ export type mBaseForVec<T extends AnyVecInstance> = T extends v2f ? m2x2f
  * Boolean schema representing a single WGSL bool value.
  * Cannot be used inside buffers as it is not host-shareable.
  */
-export interface Bool extends BaseData {
+export interface Bool extends DualFn<(v?: number | boolean) => boolean> {
   readonly type: 'bool';
 
   // Type-tokens, not available at runtime
@@ -767,14 +788,12 @@ export interface Bool extends BaseData {
   readonly [$invalidSchemaReason]:
     'Bool is not host-shareable, use U32 or I32 instead';
   // ---
-
-  (v?: number | boolean): boolean;
 }
 
 /**
  * 32-bit float schema representing a single WGSL f32 value.
  */
-export interface F32 extends BaseData {
+export interface F32 extends DualFn<(v?: number | boolean) => number> {
   readonly type: 'f32';
 
   // Type-tokens, not available at runtime
@@ -783,14 +802,12 @@ export interface F32 extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (v?: number | boolean): number;
 }
 
 /**
  * 16-bit float schema representing a single WGSL f16 value.
  */
-export interface F16 extends BaseData {
+export interface F16 extends DualFn<(v?: number | boolean) => number> {
   readonly type: 'f16';
 
   // Type-tokens, not available at runtime
@@ -799,14 +816,12 @@ export interface F16 extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (v?: number | boolean): number;
 }
 
 /**
  * Signed 32-bit integer schema representing a single WGSL i32 value.
  */
-export interface I32 extends BaseData {
+export interface I32 extends DualFn<(v?: number | boolean) => number> {
   readonly type: 'i32';
 
   // Type-tokens, not available at runtime
@@ -816,14 +831,12 @@ export interface I32 extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (v?: number | boolean): number;
 }
 
 /**
  * Unsigned 32-bit integer schema representing a single WGSL u32 value.
  */
-export interface U32 extends BaseData {
+export interface U32 extends DualFn<(v?: number | boolean) => number> {
   readonly type: 'u32';
 
   // Type-tokens, not available at runtime
@@ -833,8 +846,6 @@ export interface U32 extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (v?: number | boolean): number;
 }
 
 /**
@@ -853,8 +864,15 @@ export interface U16 extends BaseData {
 /**
  * Type of the `d.vec2f` object/function: vector data type schema/constructor
  */
-export interface Vec2f extends BaseData {
+export interface Vec2f extends
+  DualFn<
+    & ((x: number, y: number) => v2f)
+    & ((xy: number) => v2f)
+    & (() => v2f)
+    & ((v: AnyNumericVec2Instance) => v2f)
+  > {
   readonly type: 'vec2f';
+  readonly primitive: F32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v2f;
@@ -862,18 +880,20 @@ export interface Vec2f extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number): v2f;
-  (xy: number): v2f;
-  (): v2f;
-  (v: AnyNumericVec2Instance): v2f;
 }
 
 /**
  * Type of the `d.vec2h` object/function: vector data type schema/constructor
  */
-export interface Vec2h extends BaseData {
+export interface Vec2h extends
+  DualFn<
+    & ((x: number, y: number) => v2h)
+    & ((xy: number) => v2h)
+    & (() => v2h)
+    & ((v: AnyNumericVec2Instance) => v2h)
+  > {
   readonly type: 'vec2h';
+  readonly primitive: F16;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v2h;
@@ -881,18 +901,20 @@ export interface Vec2h extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number): v2h;
-  (xy: number): v2h;
-  (): v2h;
-  (v: AnyNumericVec2Instance): v2h;
 }
 
 /**
  * Type of the `d.vec2i` object/function: vector data type schema/constructor
  */
-export interface Vec2i extends BaseData {
+export interface Vec2i extends
+  DualFn<
+    & ((x: number, y: number) => v2i)
+    & ((xy: number) => v2i)
+    & (() => v2i)
+    & ((v: AnyNumericVec2Instance) => v2i)
+  > {
   readonly type: 'vec2i';
+  readonly primitive: I32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v2i;
@@ -900,18 +922,20 @@ export interface Vec2i extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number): v2i;
-  (xy: number): v2i;
-  (): v2i;
-  (v: AnyNumericVec2Instance): v2i;
 }
 
 /**
  * Type of the `d.vec2u` object/function: vector data type schema/constructor
  */
-export interface Vec2u extends BaseData {
+export interface Vec2u extends
+  DualFn<
+    & ((x: number, y: number) => v2u)
+    & ((xy: number) => v2u)
+    & (() => v2u)
+    & ((v: AnyNumericVec2Instance) => v2u)
+  > {
   readonly type: 'vec2u';
+  readonly primitive: U32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v2u;
@@ -919,37 +943,43 @@ export interface Vec2u extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number): v2u;
-  (xy: number): v2u;
-  (): v2u;
-  (v: AnyNumericVec2Instance): v2u;
 }
 
 /**
  * Type of the `d.vec2b` object/function: vector data type schema/constructor
  * Cannot be used inside buffers as it is not host-shareable.
  */
-export interface Vec2b extends BaseData {
+export interface Vec2b extends
+  DualFn<
+    & ((x: boolean, y: boolean) => v2b)
+    & ((xy: boolean) => v2b)
+    & (() => v2b)
+    & ((v: v2b) => v2b)
+  > {
   readonly type: 'vec2<bool>';
+  readonly primitive: Bool;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v2b;
   readonly [$invalidSchemaReason]:
     'Boolean vectors is not host-shareable, use numeric vectors instead';
   // ---
-
-  (x: boolean, y: boolean): v2b;
-  (xy: boolean): v2b;
-  (): v2b;
-  (v: v2b): v2b;
 }
 
 /**
  * Type of the `d.vec3f` object/function: vector data type schema/constructor
  */
-export interface Vec3f extends BaseData {
+export interface Vec3f extends
+  DualFn<
+    & ((x: number, y: number, z: number) => v3f)
+    & ((xyz: number) => v3f)
+    & (() => v3f)
+    & ((v: AnyNumericVec3Instance) => v3f)
+    & ((v0: AnyNumericVec2Instance, z: number) => v3f)
+    & ((x: number, v0: AnyNumericVec2Instance) => v3f)
+  > {
   readonly type: 'vec3f';
+  readonly primitive: F32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v3f;
@@ -957,20 +987,22 @@ export interface Vec3f extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number): v3f;
-  (xyz: number): v3f;
-  (): v3f;
-  (v: AnyNumericVec3Instance): v3f;
-  (v0: AnyNumericVec2Instance, z: number): v3f;
-  (x: number, v0: AnyNumericVec2Instance): v3f;
 }
 
 /**
  * Type of the `d.vec3h` object/function: vector data type schema/constructor
  */
-export interface Vec3h extends BaseData {
+export interface Vec3h extends
+  DualFn<
+    & ((x: number, y: number, z: number) => v3h)
+    & ((xyz: number) => v3h)
+    & (() => v3h)
+    & ((v: AnyNumericVec3Instance) => v3h)
+    & ((v0: AnyNumericVec2Instance, z: number) => v3h)
+    & ((x: number, v0: AnyNumericVec2Instance) => v3h)
+  > {
   readonly type: 'vec3h';
+  readonly primitive: F16;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v3h;
@@ -978,20 +1010,22 @@ export interface Vec3h extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number): v3h;
-  (xyz: number): v3h;
-  (): v3h;
-  (v: AnyNumericVec3Instance): v3h;
-  (v0: AnyNumericVec2Instance, z: number): v3h;
-  (x: number, v0: AnyNumericVec2Instance): v3h;
 }
 
 /**
  * Type of the `d.vec3i` object/function: vector data type schema/constructor
  */
-export interface Vec3i extends BaseData {
+export interface Vec3i extends
+  DualFn<
+    & ((x: number, y: number, z: number) => v3i)
+    & ((xyz: number) => v3i)
+    & (() => v3i)
+    & ((v: AnyNumericVec3Instance) => v3i)
+    & ((v0: AnyNumericVec2Instance, z: number) => v3i)
+    & ((x: number, v0: AnyNumericVec2Instance) => v3i)
+  > {
   readonly type: 'vec3i';
+  readonly primitive: I32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v3i;
@@ -999,20 +1033,22 @@ export interface Vec3i extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number): v3i;
-  (xyz: number): v3i;
-  (): v3i;
-  (v: AnyNumericVec3Instance): v3i;
-  (v0: AnyNumericVec2Instance, z: number): v3i;
-  (x: number, v0: AnyNumericVec2Instance): v3i;
 }
 
 /**
  * Type of the `d.vec3u` object/function: vector data type schema/constructor
  */
-export interface Vec3u extends BaseData {
+export interface Vec3u extends
+  DualFn<
+    & ((x: number, y: number, z: number) => v3u)
+    & ((xyz: number) => v3u)
+    & (() => v3u)
+    & ((v: AnyNumericVec3Instance) => v3u)
+    & ((v0: AnyNumericVec2Instance, z: number) => v3u)
+    & ((x: number, v0: AnyNumericVec2Instance) => v3u)
+  > {
   readonly type: 'vec3u';
+  readonly primitive: U32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v3u;
@@ -1020,41 +1056,49 @@ export interface Vec3u extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number): v3u;
-  (xyz: number): v3u;
-  (): v3u;
-  (v: AnyNumericVec3Instance): v3u;
-  (v0: AnyNumericVec2Instance, z: number): v3u;
-  (x: number, v0: AnyNumericVec2Instance): v3u;
 }
 
 /**
  * Type of the `d.vec3b` object/function: vector data type schema/constructor
  * Cannot be used inside buffers as it is not host-shareable.
  */
-export interface Vec3b extends BaseData {
+export interface Vec3b extends
+  DualFn<
+    & ((x: boolean, y: boolean, z: boolean) => v3b)
+    & ((xyz: boolean) => v3b)
+    & (() => v3b)
+    & ((v: v3b) => v3b)
+    & ((v0: v2b, z: boolean) => v3b)
+    & ((x: boolean, v0: v2b) => v3b)
+  > {
   readonly type: 'vec3<bool>';
+  readonly primitive: Bool;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v3b;
   readonly [$invalidSchemaReason]:
     'Boolean vectors is not host-shareable, use numeric vectors instead';
   // ---
-
-  (x: boolean, y: boolean, z: boolean): v3b;
-  (xyz: boolean): v3b;
-  (): v3b;
-  (v: v3b): v3b;
-  (v0: v2b, z: boolean): v3b;
-  (x: boolean, v0: v2b): v3b;
 }
 
 /**
  * Type of the `d.vec4f` object/function: vector data type schema/constructor
  */
-export interface Vec4f extends BaseData {
+export interface Vec4f extends
+  DualFn<
+    & ((x: number, y: number, z: number, w: number) => v4f)
+    & ((xyzw: number) => v4f)
+    & (() => v4f)
+    & ((v: AnyNumericVec4Instance) => v4f)
+    & ((v0: AnyNumericVec3Instance, w: number) => v4f)
+    & ((x: number, v0: AnyNumericVec3Instance) => v4f)
+    & ((v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance) => v4f)
+    & ((v0: AnyNumericVec2Instance, z: number, w: number) => v4f)
+    & ((x: number, v0: AnyNumericVec2Instance, z: number) => v4f)
+    & ((x: number, y: number, v0: AnyNumericVec2Instance) => v4f)
+  > {
   readonly type: 'vec4f';
+  readonly primitive: F32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v4f;
@@ -1062,24 +1106,26 @@ export interface Vec4f extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number, w: number): v4f;
-  (xyzw: number): v4f;
-  (): v4f;
-  (v: AnyNumericVec4Instance): v4f;
-  (v0: AnyNumericVec3Instance, w: number): v4f;
-  (x: number, v0: AnyNumericVec3Instance): v4f;
-  (v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance): v4f;
-  (v0: AnyNumericVec2Instance, z: number, w: number): v4f;
-  (x: number, v0: AnyNumericVec2Instance, z: number): v4f;
-  (x: number, y: number, v0: AnyNumericVec2Instance): v4f;
 }
 
 /**
  * Type of the `d.vec4h` object/function: vector data type schema/constructor
  */
-export interface Vec4h extends BaseData {
+export interface Vec4h extends
+  DualFn<
+    & ((x: number, y: number, z: number, w: number) => v4h)
+    & ((xyzw: number) => v4h)
+    & (() => v4h)
+    & ((v: AnyNumericVec4Instance) => v4h)
+    & ((v0: AnyNumericVec3Instance, w: number) => v4h)
+    & ((x: number, v0: AnyNumericVec3Instance) => v4h)
+    & ((v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance) => v4h)
+    & ((v0: AnyNumericVec2Instance, z: number, w: number) => v4h)
+    & ((x: number, v0: AnyNumericVec2Instance, z: number) => v4h)
+    & ((x: number, y: number, v0: AnyNumericVec2Instance) => v4h)
+  > {
   readonly type: 'vec4h';
+  readonly primitive: F16;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v4h;
@@ -1087,24 +1133,26 @@ export interface Vec4h extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number, w: number): v4h;
-  (xyzw: number): v4h;
-  (): v4h;
-  (v: AnyNumericVec4Instance): v4h;
-  (v0: AnyNumericVec3Instance, w: number): v4h;
-  (x: number, v0: AnyNumericVec3Instance): v4h;
-  (v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance): v4h;
-  (v0: AnyNumericVec2Instance, z: number, w: number): v4h;
-  (x: number, v0: AnyNumericVec2Instance, z: number): v4h;
-  (x: number, y: number, v0: AnyNumericVec2Instance): v4h;
 }
 
 /**
  * Type of the `d.vec4i` object/function: vector data type schema/constructor
  */
-export interface Vec4i extends BaseData {
+export interface Vec4i extends
+  DualFn<
+    & ((x: number, y: number, z: number, w: number) => v4i)
+    & ((xyzw: number) => v4i)
+    & (() => v4i)
+    & ((v: AnyNumericVec4Instance) => v4i)
+    & ((v0: AnyNumericVec3Instance, w: number) => v4i)
+    & ((x: number, v0: AnyNumericVec3Instance) => v4i)
+    & ((v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance) => v4i)
+    & ((v0: AnyNumericVec2Instance, z: number, w: number) => v4i)
+    & ((x: number, v0: AnyNumericVec2Instance, z: number) => v4i)
+    & ((x: number, y: number, v0: AnyNumericVec2Instance) => v4i)
+  > {
   readonly type: 'vec4i';
+  readonly primitive: I32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v4i;
@@ -1112,24 +1160,26 @@ export interface Vec4i extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number, w: number): v4i;
-  (xyzw: number): v4i;
-  (): v4i;
-  (v: AnyNumericVec4Instance): v4i;
-  (v0: AnyNumericVec3Instance, w: number): v4i;
-  (x: number, v0: AnyNumericVec3Instance): v4i;
-  (v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance): v4i;
-  (v0: AnyNumericVec2Instance, z: number, w: number): v4i;
-  (x: number, v0: AnyNumericVec2Instance, z: number): v4i;
-  (x: number, y: number, v0: AnyNumericVec2Instance): v4i;
 }
 
 /**
  * Type of the `d.vec4u` object/function: vector data type schema/constructor
  */
-export interface Vec4u extends BaseData {
+export interface Vec4u extends
+  DualFn<
+    & ((x: number, y: number, z: number, w: number) => v4u)
+    & ((xyzw: number) => v4u)
+    & (() => v4u)
+    & ((v: AnyNumericVec4Instance) => v4u)
+    & ((v0: AnyNumericVec3Instance, w: number) => v4u)
+    & ((x: number, v0: AnyNumericVec3Instance) => v4u)
+    & ((v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance) => v4u)
+    & ((v0: AnyNumericVec2Instance, z: number, w: number) => v4u)
+    & ((x: number, v0: AnyNumericVec2Instance, z: number) => v4u)
+    & ((x: number, y: number, v0: AnyNumericVec2Instance) => v4u)
+  > {
   readonly type: 'vec4u';
+  readonly primitive: U32;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v4u;
@@ -1137,42 +1187,33 @@ export interface Vec4u extends BaseData {
   readonly [$validUniformSchema]: true;
   readonly [$validVertexSchema]: true;
   // ---
-
-  (x: number, y: number, z: number, w: number): v4u;
-  (xyzw: number): v4u;
-  (): v4u;
-  (v: AnyNumericVec4Instance): v4u;
-  (v0: AnyNumericVec3Instance, w: number): v4u;
-  (x: number, v0: AnyNumericVec3Instance): v4u;
-  (v0: AnyNumericVec2Instance, v1: AnyNumericVec2Instance): v4u;
-  (v0: AnyNumericVec2Instance, z: number, w: number): v4u;
-  (x: number, v0: AnyNumericVec2Instance, z: number): v4u;
-  (x: number, y: number, v0: AnyNumericVec2Instance): v4u;
 }
 
 /**
  * Type of the `d.vec4b` object/function: vector data type schema/constructor
  * Cannot be used inside buffers as it is not host-shareable.
  */
-export interface Vec4b extends BaseData {
+export interface Vec4b extends
+  DualFn<
+    & ((x: boolean, y: boolean, z: boolean, w: boolean) => v4b)
+    & ((xyzw: boolean) => v4b)
+    & (() => v4b)
+    & ((v: v4b) => v4b)
+    & ((v0: v3b, w: boolean) => v4b)
+    & ((x: boolean, v0: v3b) => v4b)
+    & ((v0: v2b, v1: v2b) => v4b)
+    & ((v0: v2b, z: boolean, w: boolean) => v4b)
+    & ((x: boolean, v0: v2b, z: boolean) => v4b)
+    & ((x: boolean, y: boolean, v0: v2b) => v4b)
+  > {
   readonly type: 'vec4<bool>';
+  readonly primitive: Bool;
 
   // Type-tokens, not available at runtime
   readonly [$repr]: v4b;
   readonly [$invalidSchemaReason]:
     'Boolean vectors is not host-shareable, use numeric vectors instead';
   // ---
-
-  (x: boolean, y: boolean, z: boolean, w: boolean): v4b;
-  (xyzw: boolean): v4b;
-  (): v4b;
-  (v: v4b): v4b;
-  (v0: v3b, w: boolean): v4b;
-  (x: boolean, v0: v3b): v4b;
-  (v0: v2b, v1: v2b): v4b;
-  (v0: v2b, z: boolean, w: boolean): v4b;
-  (x: boolean, v0: v2b, z: boolean): v4b;
-  (x: boolean, y: boolean, v0: v2b): v4b;
 }
 
 /**
@@ -1277,6 +1318,9 @@ export interface WgslStruct<
   // biome-ignore lint/suspicious/noExplicitAny: the widest type that works with both covariance and contravariance
   TProps extends Record<string, BaseData> = any,
 > extends BaseData, TgpuNamable {
+  readonly [$internal]: {
+    isAbstruct: boolean;
+  };
   readonly type: 'struct';
   readonly propTypes: TProps;
 
@@ -1325,7 +1369,7 @@ export type Access = 'read' | 'write' | 'read-write';
 
 export interface Ptr<
   TAddr extends AddressSpace = AddressSpace,
-  TInner extends BaseData = BaseData, // can also be sampler or texture (╯'□')╯︵ ┻━┻
+  TInner extends StorableData = StorableData,
   TAccess extends Access = Access,
 > extends BaseData {
   readonly type: 'ptr';
@@ -1465,6 +1509,25 @@ export const wgslTypeLiterals = [
   'abstractInt',
   'abstractFloat',
   'void',
+  'texture_1d',
+  'texture_storage_1d',
+  'texture_2d',
+  'texture_storage_2d',
+  'texture_multisampled_2d',
+  'texture_depth_2d',
+  'texture_depth_multisampled_2d',
+  'texture_2d_array',
+  'texture_storage_2d_array',
+  'texture_depth_2d_array',
+  'texture_cube',
+  'texture_depth_cube',
+  'texture_cube_array',
+  'texture_depth_cube_array',
+  'texture_3d',
+  'texture_storage_3d',
+  'texture_external',
+  'sampler',
+  'sampler_comparison',
 ] as const;
 
 export type WgslTypeLiteral = (typeof wgslTypeLiterals)[number];
@@ -1498,6 +1561,11 @@ export type FlatInterpolatableData =
   | FlatInterpolatableAdditionalBaseType
   | Decorated<FlatInterpolatableAdditionalBaseType>;
 
+export type TextureSampleTypes =
+  | F32
+  | I32
+  | U32;
+
 export type ScalarData =
   | Bool
   | F32
@@ -1506,6 +1574,40 @@ export type ScalarData =
   | U32
   | AbstractInt
   | AbstractFloat;
+
+export type VecData =
+  | Vec2f
+  | Vec2h
+  | Vec2i
+  | Vec2u
+  | Vec2b
+  | Vec3f
+  | Vec3h
+  | Vec3i
+  | Vec3u
+  | Vec3b
+  | Vec4f
+  | Vec4h
+  | Vec4i
+  | Vec4u
+  | Vec4b;
+
+export type MatData =
+  | Mat2x2f
+  | Mat3x3f
+  | Mat4x4f;
+
+export type StorableData =
+  | ScalarData
+  | VecData
+  | MatData
+  | Atomic
+  | WgslArray
+  | WgslStruct;
+
+export type AnyFloat32VecData = Vec2f | Vec3f | Vec4f;
+
+export type AnyFloat16VecData = Vec2h | Vec3h | Vec4h;
 
 export type AnyWgslData =
   | Bool
@@ -1540,35 +1642,40 @@ export type AnyWgslData =
   | Decorated
   | AbstractInt
   | AbstractFloat
-  | Void;
+  | Void
+  | WgslTexture
+  | WgslStorageTexture
+  | WgslExternalTexture
+  | WgslSampler
+  | WgslComparisonSampler;
 
 // #endregion
 
 export function isVecInstance(value: unknown): value is AnyVecInstance {
   const v = value as AnyVecInstance | undefined;
-  return !!v?.[$internal] &&
-    typeof v.kind?.startsWith === 'function' &&
+  return isMarkedInternal(v) &&
+    typeof v.kind === 'string' &&
     v.kind.startsWith('vec');
 }
 
 export function isVec2(value: unknown): value is Vec2f | Vec2h | Vec2i | Vec2u {
   const v = value as AnyWgslData | undefined;
-  return !!v?.[$internal] &&
-    typeof v.type?.startsWith === 'function' &&
-    v.type.startsWith?.('vec2');
+  return isMarkedInternal(v) &&
+    typeof v.type === 'string' &&
+    v.type.startsWith('vec2');
 }
 
 export function isVec3(value: unknown): value is Vec3f | Vec3h | Vec3i | Vec3u {
   const v = value as AnyWgslData | undefined;
-  return !!v?.[$internal] &&
-    typeof v.type?.startsWith === 'function' &&
+  return isMarkedInternal(v) &&
+    typeof v.type === 'string' &&
     v.type.startsWith('vec3');
 }
 
 export function isVec4(value: unknown): value is Vec4f | Vec4h | Vec4i | Vec4u {
   const v = value as AnyWgslData | undefined;
-  return !!v?.[$internal] &&
-    typeof v.type?.startsWith === 'function' &&
+  return isMarkedInternal(v) &&
+    typeof v.type === 'string' &&
     v.type.startsWith('vec4');
 }
 
@@ -1592,28 +1699,28 @@ export function isVec(
 
 export function isMatInstance(value: unknown): value is AnyMatInstance {
   const v = value as AnyMatInstance | undefined;
-  return !!v?.[$internal] &&
+  return isMarkedInternal(v) &&
     typeof v.kind?.startsWith === 'function' &&
     v.kind.startsWith('mat');
 }
 
 export function isMat2x2f(value: unknown): value is Mat2x2f {
   return (
-    (value as AnyWgslData)?.[$internal] &&
+    isMarkedInternal(value) &&
     (value as AnyWgslData)?.type === 'mat2x2f'
   );
 }
 
 export function isMat3x3f(value: unknown): value is Mat3x3f {
   return (
-    (value as AnyWgslData)?.[$internal] &&
+    isMarkedInternal(value) &&
     (value as AnyWgslData)?.type === 'mat3x3f'
   );
 }
 
 export function isMat4x4f(value: unknown): value is Mat4x4f {
   return (
-    (value as AnyWgslData)?.[$internal] &&
+    isMarkedInternal(value) &&
     (value as AnyWgslData)?.type === 'mat4x4f'
   );
 }
@@ -1631,7 +1738,7 @@ export function isFloat32VecInstance(
 
 export function isWgslData(value: unknown): value is AnyWgslData {
   return (
-    (value as AnyWgslData)?.[$internal] &&
+    isMarkedInternal(value) &&
     wgslTypeLiterals.includes((value as AnyWgslData)?.type)
   );
 }
@@ -1651,7 +1758,7 @@ export function isWgslData(value: unknown): value is AnyWgslData {
 export function isWgslArray<T extends WgslArray>(
   schema: T | unknown,
 ): schema is T {
-  return (schema as T)?.[$internal] && (schema as T)?.type === 'array';
+  return isMarkedInternal(schema) && (schema as T)?.type === 'array';
 }
 
 /**
@@ -1669,18 +1776,19 @@ export function isWgslArray<T extends WgslArray>(
 export function isWgslStruct<T extends WgslStruct>(
   schema: T | unknown,
 ): schema is T {
-  return (schema as T)?.[$internal] && (schema as T)?.type === 'struct';
+  return isMarkedInternal(schema) && (schema as T)?.type === 'struct';
 }
 
 /**
- * Checks whether passed in value is a pointer ('function' scope) schema.
+ * Checks whether passed in value is a pointer schema.
  *
  * @example
- * isPtrFn(d.ptrFn(d.f32)) // true
- * isPtrFn(d.f32) // false
+ * isPtr(d.ptrFn(d.f32)) // true
+ * isPtr(d.ptrPrivate(d.f32)) // true
+ * isPtr(d.f32) // false
  */
 export function isPtr<T extends Ptr>(schema: T | unknown): schema is T {
-  return (schema as T)?.[$internal] && (schema as T)?.type === 'ptr';
+  return isMarkedInternal(schema) && (schema as T)?.type === 'ptr';
 }
 
 /**
@@ -1693,65 +1801,105 @@ export function isPtr<T extends Ptr>(schema: T | unknown): schema is T {
 export function isAtomic<T extends Atomic<U32 | I32>>(
   schema: T | unknown,
 ): schema is T {
-  return (schema as T)?.[$internal] && (schema as T)?.type === 'atomic';
+  return isMarkedInternal(schema) && (schema as T)?.type === 'atomic';
 }
 
 export function isAlignAttrib<T extends Align<number>>(
   value: unknown | T,
 ): value is T {
-  return (value as T)?.[$internal] && (value as T)?.type === '@align';
+  return isMarkedInternal(value) && (value as T)?.type === '@align';
 }
 
 export function isSizeAttrib<T extends Size<number>>(
   value: unknown | T,
 ): value is T {
-  return (value as T)?.[$internal] && (value as T)?.type === '@size';
+  return isMarkedInternal(value) && (value as T)?.type === '@size';
 }
 
 export function isLocationAttrib<T extends Location<number>>(
   value: unknown | T,
 ): value is T {
-  return (value as T)?.[$internal] && (value as T)?.type === '@location';
+  return isMarkedInternal(value) && (value as T)?.type === '@location';
 }
 
 export function isInterpolateAttrib<T extends Interpolate<InterpolationType>>(
   value: unknown | T,
 ): value is T {
-  return (value as T)?.[$internal] && (value as T)?.type === '@interpolate';
+  return isMarkedInternal(value) && (value as T)?.type === '@interpolate';
 }
 
 export function isBuiltinAttrib<T extends Builtin<string>>(
   value: unknown | T,
 ): value is T {
-  return (value as T)?.[$internal] && (value as T)?.type === '@builtin';
+  return isMarkedInternal(value) && (value as T)?.type === '@builtin';
 }
 
 export function isInvariantAttrib<T extends Invariant>(
   value: unknown | T,
 ): value is T {
-  return (value as T)?.[$internal] && (value as T)?.type === '@invariant';
+  return isMarkedInternal(value) && (value as T)?.type === '@invariant';
 }
 
 export function isDecorated<T extends Decorated>(
   value: unknown | T,
 ): value is T {
-  return (value as T)?.[$internal] && (value as T)?.type === 'decorated';
+  return isMarkedInternal(value) && (value as T)?.type === 'decorated';
 }
 
 export function isAbstractFloat(value: unknown): value is AbstractFloat {
   return (
-    (value as AbstractFloat)?.[$internal] &&
+    isMarkedInternal(value) &&
     (value as AbstractFloat).type === 'abstractFloat'
   );
 }
 
 export function isAbstractInt(value: unknown): value is AbstractInt {
   return (
-    (value as AbstractInt)?.[$internal] &&
+    isMarkedInternal(value) &&
     (value as AbstractInt).type === 'abstractInt'
   );
 }
 
+export function isAbstract(
+  value: unknown,
+): value is AbstractFloat | AbstractInt {
+  return isAbstractFloat(value) || isAbstractInt(value);
+}
+
+export function isConcrete(value: unknown): boolean {
+  return !isAbstract(value);
+}
+
 export function isVoid(value: unknown): value is Void {
-  return (value as Void)?.[$internal] && (value as Void).type === 'void';
+  return isMarkedInternal(value) && (value as Void).type === 'void';
+}
+
+export function isNumericSchema(
+  schema: unknown,
+): schema is AbstractInt | AbstractFloat | F32 | F16 | I32 | U32 {
+  const type = (schema as BaseData)?.type;
+
+  return (
+    isMarkedInternal(schema) &&
+    (type === 'abstractInt' ||
+      type === 'abstractFloat' ||
+      type === 'f32' ||
+      type === 'f16' ||
+      type === 'i32' ||
+      type === 'u32')
+  );
+}
+
+export function isHalfPrecisionSchema(
+  schema: unknown,
+): schema is F16 | Vec2h | Vec3h | Vec4h {
+  const type = (schema as BaseData)?.type;
+
+  return (
+    isMarkedInternal(schema) &&
+    (type === 'f16' ||
+      type === 'vec2h' ||
+      type === 'vec3h' ||
+      type === 'vec4h')
+  );
 }

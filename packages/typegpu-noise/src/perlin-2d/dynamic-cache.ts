@@ -15,7 +15,7 @@ import {
   getJunctionGradientSlot,
 } from './algorithm.ts';
 
-const MemorySchema = (n: number) => d.arrayOf(d.vec2f, n);
+const MemorySchema = d.arrayOf(d.vec2f);
 
 type Layout<Prefix extends string> = Prettify<
   PrefixKeys<Prefix, {
@@ -72,7 +72,7 @@ const DefaultPerlin2DLayoutPrefix = 'perlin2dCache__' as const;
  *
  * @param options A set of general options for instances of this cache configuration.
  *
- * ### Basic usage
+ * --- Basic usage
  * @example
  * ```ts
  * const cacheConfig = perlin2d.dynamicCacheConfig();
@@ -97,7 +97,7 @@ const DefaultPerlin2DLayoutPrefix = 'perlin2dCache__' as const;
  *   const group = root.createBindGroup(dynamicLayout, { ...cache.bindings });
  *
  *   pipeline
- *     .with(dynamicLayout, group)
+ *     .with(group)
  *     // ...
  *     .draw(3);
  * };
@@ -160,17 +160,15 @@ export function dynamicCacheConfig<Prefix extends string>(
     memory: { storage: MemorySchema, access: 'mutable' },
   });
 
-  const mainCompute = tgpu['~unstable'].computeFn({
-    workgroupSize: [1, 1, 1],
-    in: { gid: d.builtin.globalInvocationId },
-  })((input) => {
+  const mainCompute = (x: number, y: number) => {
+    'use gpu';
     const size = computeLayout.$.size;
-    const idx = input.gid.x + input.gid.y * size.x;
+    const idx = x + y * size.x;
 
     computeLayout.$.memory[idx] = computeJunctionGradient(
-      d.vec2i(input.gid.xy),
+      d.vec2i(x, y),
     );
-  });
+  };
 
   const instance = (
     root: TgpuRoot,
@@ -184,8 +182,7 @@ export function dynamicCacheConfig<Prefix extends string>(
       .$usage('uniform');
 
     const computePipeline = root['~unstable']
-      .withCompute(mainCompute)
-      .createPipeline();
+      .createGuardedComputePipeline(mainCompute);
 
     const createMemory = () => {
       const memory = root
@@ -198,8 +195,8 @@ export function dynamicCacheConfig<Prefix extends string>(
       });
 
       computePipeline
-        .with(computeLayout, computeBindGroup)
-        .dispatchWorkgroups(size.x, size.y);
+        .with(computeBindGroup)
+        .dispatchThreads(size.x, size.y);
 
       return memory;
     };

@@ -1,13 +1,7 @@
 import { getResolutionCtx } from '../../execMode.ts';
 import { getName } from '../../shared/meta.ts';
-import type { Infer, InferGPU } from '../../shared/repr.ts';
-import {
-  $gpuRepr,
-  $gpuValueOf,
-  $providing,
-  $repr,
-} from '../../shared/symbols.ts';
-import type { ResolutionCtx } from '../../types.ts';
+import type { GPUValueOf } from '../../shared/repr.ts';
+import { $gpuValueOf, $internal, $providing } from '../../shared/symbols.ts';
 import { getGpuValueRecursively } from '../valueProxyUtils.ts';
 import type {
   Eventual,
@@ -40,27 +34,25 @@ function createDerived<T>(compute: () => T): TgpuDerived<T> {
   }
 
   const result = {
+    [$internal]: true as const,
     resourceType: 'derived' as const,
     '~compute': compute,
-    [$repr]: undefined as Infer<T>,
-    [$gpuRepr]: undefined as InferGPU<T>,
 
-    [$gpuValueOf](ctx: ResolutionCtx): InferGPU<T> {
-      return getGpuValueRecursively(ctx, ctx.unwrap(this));
-    },
-
-    get value(): InferGPU<T> {
+    get [$gpuValueOf](): GPUValueOf<T> {
       const ctx = getResolutionCtx();
       if (!ctx) {
         throw new Error(
           `Cannot access tgpu.derived's value outside of resolution.`,
         );
       }
-
-      return this[$gpuValueOf](ctx);
+      return getGpuValueRecursively(ctx.unwrap(this));
     },
 
-    get $(): InferGPU<T> {
+    get value(): GPUValueOf<T> {
+      return this[$gpuValueOf];
+    },
+
+    get $(): GPUValueOf<T> {
       return this.value;
     },
 
@@ -84,9 +76,8 @@ function createBoundDerived<T>(
   pairs: SlotValuePair[],
 ): TgpuDerived<T> {
   const result = {
+    [$internal]: true as const,
     resourceType: 'derived' as const,
-    [$repr]: undefined as Infer<T>,
-    [$gpuRepr]: undefined as InferGPU<T>,
 
     '~compute'() {
       throw new Error(
@@ -98,11 +89,7 @@ function createBoundDerived<T>(
       pairs,
     },
 
-    [$gpuValueOf](ctx: ResolutionCtx): InferGPU<T> {
-      return getGpuValueRecursively(ctx, ctx.unwrap(this));
-    },
-
-    get value(): InferGPU<T> {
+    get [$gpuValueOf](): GPUValueOf<T> {
       const ctx = getResolutionCtx();
       if (!ctx) {
         throw new Error(
@@ -110,10 +97,14 @@ function createBoundDerived<T>(
         );
       }
 
-      return this[$gpuValueOf](ctx);
+      return getGpuValueRecursively(ctx.unwrap(this));
     },
 
-    get $(): InferGPU<T> {
+    get value(): GPUValueOf<T> {
+      return this[$gpuValueOf];
+    },
+
+    get $(): GPUValueOf<T> {
       return this.value;
     },
 

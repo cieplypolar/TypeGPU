@@ -1,31 +1,28 @@
-import { describe, expect, vi } from 'vitest';
+import { describe, expect, expectTypeOf, vi } from 'vitest';
 import * as d from '../src/data/index.ts';
-import tgpu from '../src/index.ts';
+import tgpu, { type TgpuDerived } from '../src/index.ts';
 import { mul } from '../src/std/index.ts';
 import { it } from './utils/extendedIt.ts';
-import { parse, parseResolved } from './utils/parseResolved.ts';
+import { asWgsl } from './utils/parseResolved.ts';
 
 describe('TgpuDerived', () => {
   it('memoizes results of transitive "derived"', () => {
     const foo = tgpu.slot<number>(1);
-    const computeDouble = vi.fn(() => {
-      return foo.value * 2;
-    });
+    const computeDouble = vi.fn(() => foo.$ * 2);
     const double = tgpu['~unstable'].derived(computeDouble);
-    const a = tgpu['~unstable'].derived(() => double.value + 1);
-    const b = tgpu['~unstable'].derived(() => double.value + 2);
+    const a = tgpu['~unstable'].derived(() => double.$ + 1);
+    const b = tgpu['~unstable'].derived(() => double.$ + 2);
 
-    const main = tgpu.fn([], d.f32)(() => {
-      return a.value + b.value;
-    });
+    const main = () => {
+      'use gpu';
+      return a.$ + b.$;
+    };
 
-    expect(parseResolved({ main })).toBe(
-      parse(`
-      fn main() -> f32 {
-        return (3 + 4);
-      }
-    `),
-    );
+    expect(asWgsl(main)).toMatchInlineSnapshot(`
+      "fn main() -> i32 {
+        return 7;
+      }"
+    `);
 
     expect(computeDouble).toHaveBeenCalledTimes(1);
   });
@@ -42,15 +39,15 @@ describe('TgpuDerived', () => {
     const b = getDouble.with(foo, 2); // the same as `a`
     const c = getDouble.with(foo, 4);
 
-    const main = tgpu.fn([])(() => {
+    const main = () => {
+      'use gpu';
       a();
       b();
       c();
-    });
+    };
 
-    expect(parseResolved({ main })).toBe(
-      parse(`
-      fn getDouble() -> f32 {
+    expect(asWgsl(main)).toMatchInlineSnapshot(`
+      "fn getDouble() -> f32 {
         return 4;
       }
 
@@ -62,9 +59,8 @@ describe('TgpuDerived', () => {
         getDouble();
         getDouble();
         getDouble_1();
-      }
-    `),
-    );
+      }"
+    `);
   });
 
   it('can use slot values from its surrounding context', () => {
@@ -81,28 +77,36 @@ describe('TgpuDerived', () => {
     const fillWith2 = fill.with(gridSizeSlot, 2);
     const fillWith3 = fill.with(gridSizeSlot, 3);
 
-    const exampleArray: number[] = [1, 2, 3];
+    const oneArray: number[] = [1];
+    const twoArray: number[] = [1, 2];
+    const threeArray: number[] = [1, 2, 3];
 
     const main = tgpu.fn([])(() => {
-      fill.value(exampleArray);
-      fillWith2.value(exampleArray);
-      fillWith3.value(exampleArray);
+      fill.value(oneArray);
+      fillWith2.value(twoArray);
+      fillWith3.value(threeArray);
     })
       .with(gridSizeSlot, 1);
 
-    expect(parseResolved({ main })).toBe(
-      parse(/* wgsl */ `
-      fn fill(arr: array<f32, 1>) {}
-      fn fill_1(arr: array<f32, 2>) {}
-      fn fill_2(arr: array<f32, 3>) {}
+    expect(asWgsl(main)).toMatchInlineSnapshot(`
+      "fn fill(arr: array<f32, 1>) {
+
+      }
+
+      fn fill_1(arr: array<f32, 2>) {
+
+      }
+
+      fn fill_2(arr: array<f32, 3>) {
+
+      }
 
       fn main() {
-        fill(1, 2, 3);
-        fill_1(1, 2, 3);
-        fill_2(1, 2, 3);
-      }
-    `),
-    );
+        fill(array<f32, 1>(1));
+        fill_1(array<f32, 2>(1, 2));
+        fill_2(array<f32, 3>(1, 2, 3));
+      }"
+    `);
   });
 
   it('allows access to value in tgsl functions through the .value property ', ({ root }) => {
@@ -136,30 +140,23 @@ describe('TgpuDerived', () => {
       const velX_ = derivedDerivedUniformSlot.value.vel.x;
     });
 
-    const resolved = tgpu.resolve({
-      externals: { func },
-      names: 'strict',
-    });
+    expect(asWgsl(func)).toMatchInlineSnapshot(`
+      "struct Boid {
+        pos: vec3f,
+        vel: vec3u,
+      }
 
-    expect(parse(resolved)).toBe(
-      parse(`
-        struct Boid {
-          pos: vec3f,
-          vel: vec3u,
-        }
+      @group(0) @binding(0) var<uniform> boid: Boid;
 
-        @group(0) @binding(0) var<uniform> boid: Boid;
-
-        fn func(){
-          var pos = vec3f(2, 4, 6);
-          var posX = 2;
-          var vel = boid.vel;
-          var velX = boid.vel.x;
-
-          var vel_ = boid.vel;
-          var velX_ = boid.vel.x;
-        }`),
-    );
+      fn func() {
+        var pos = vec3f(2, 4, 6);
+        var posX = 2;
+        var vel = boid.vel;
+        var velX = boid.vel.x;
+        var vel_ = boid.vel;
+        var velX_ = boid.vel.x;
+      }"
+    `);
   });
 
   // TODO: rethink this behavior of derived returning a function,
@@ -181,22 +178,20 @@ describe('TgpuDerived', () => {
       derivedFnWith2.$();
     });
 
-    expect(parseResolved({ main })).toBe(
-      parse(`
-        fn innerFn() -> f32 {
-          return 1;
-        }
+    expect(asWgsl(main)).toMatchInlineSnapshot(`
+      "fn innerFn() -> f32 {
+        return 1;
+      }
 
-        fn innerFn_1() -> f32 {
-          return 2;
-        }
+      fn innerFn_1() -> f32 {
+        return 2;
+      }
 
-        fn main() {
-          innerFn();
-          innerFn_1();
-        }
-      `),
-    );
+      fn main() {
+        innerFn();
+        innerFn_1();
+      }"
+    `);
   });
 
   it('does not allow defining derived values at resolution', () => {
@@ -208,8 +203,47 @@ describe('TgpuDerived', () => {
     );
     const fn = tgpu.fn([], d.u32)(() => absGridSize.$);
 
-    expect(() => parseResolved({ fn })).toThrow(
+    expect(() => asWgsl(fn)).toThrow(
       'Cannot create tgpu.derived objects at the resolution stage.',
     );
+  });
+
+  it('can return dynamic schemas, which can be used in function bodies', () => {
+    const halfPrecisionSlot = tgpu.slot(false);
+
+    const ResultArray = tgpu['~unstable'].derived(() =>
+      d.arrayOf(halfPrecisionSlot.$ ? d.f16 : d.f32, 4)
+    );
+
+    const foo = tgpu.fn([])(() => {
+      const array = ResultArray.$();
+    });
+
+    const fooHalf = foo.with(halfPrecisionSlot, true);
+
+    const main = () => {
+      'use gpu';
+      foo();
+      fooHalf();
+    };
+
+    expectTypeOf(ResultArray).toEqualTypeOf<
+      TgpuDerived<d.WgslArray<d.F16 | d.F32>>
+    >();
+
+    expect(asWgsl(main)).toMatchInlineSnapshot(`
+      "fn foo() {
+        var array = array<f32, 4>();
+      }
+
+      fn foo_1() {
+        var array = array<f16, 4>();
+      }
+
+      fn main() {
+        foo();
+        foo_1();
+      }"
+    `);
   });
 });

@@ -1,11 +1,12 @@
 import { createDualImpl } from '../core/function/dualImpl.ts';
-import type { $repr } from '../shared/symbols.ts';
-import { $internal } from '../shared/symbols.ts';
+import { stitch } from '../core/resolve/stitch.ts';
+import { $repr } from '../shared/symbols.ts';
+import { $internal, $resolve } from '../shared/symbols.ts';
 import type { SelfResolvable } from '../types.ts';
-import { snip } from './snippet.ts';
+import type { AnyData } from './dataTypes.ts';
+import { type ResolvedSnippet, snip } from './snippet.ts';
 import { vec2f, vec3f, vec4f } from './vector.ts';
 import type {
-  AnyWgslData,
   m2x2f,
   m3x3f,
   m4x4f,
@@ -60,17 +61,6 @@ function createMatSchema<
 >(
   options: MatSchemaOptions<TType, ColumnType>,
 ): { type: TType; [$repr]: ValueType } & MatConstructor<ValueType, ColumnType> {
-  const MatSchema = {
-    [$internal]: true,
-    type: options.type,
-    identity: identityFunctions[options.columns],
-    translation: options.columns === 4 ? translation4 : undefined,
-    scaling: options.columns === 4 ? scaling4 : undefined,
-    rotationX: options.columns === 4 ? rotationX4 : undefined,
-    rotationY: options.columns === 4 ? rotationY4 : undefined,
-    rotationZ: options.columns === 4 ? rotationZ4 : undefined,
-  } as unknown as AnyWgslData;
-
   const construct = createDualImpl(
     // CPU implementation
     (...args: (number | ColumnType)[]): ValueType => {
@@ -101,19 +91,26 @@ function createMatSchema<
 
       return new options.MatImpl(...elements) as ValueType;
     },
-    // GPU implementation
+    // CODEGEN implementation
     (...args) =>
-      snip(
-        `${MatSchema.type}(${args.map((v) => v.value).join(', ')})`,
-        MatSchema,
-      ),
-    MatSchema.type,
+      snip(stitch`${options.type}(${args})`, schema as unknown as AnyData),
+    options.type,
   );
 
-  return Object.assign(construct, MatSchema) as unknown as {
+  const schema = Object.assign(construct, {
+    type: options.type,
+    identity: identityFunctions[options.columns],
+    translation: options.columns === 4 ? translation4 : undefined,
+    scaling: options.columns === 4 ? scaling4 : undefined,
+    rotationX: options.columns === 4 ? rotationX4 : undefined,
+    rotationY: options.columns === 4 ? rotationY4 : undefined,
+    rotationZ: options.columns === 4 ? rotationZ4 : undefined,
+  }) as unknown as {
     type: TType;
     [$repr]: ValueType;
   } & MatConstructor<ValueType, ColumnType>;
+
+  return schema;
 }
 
 abstract class mat2x2Impl<TColumn extends v2f> extends MatBase<TColumn>
@@ -134,35 +131,35 @@ abstract class mat2x2Impl<TColumn extends v2f> extends MatBase<TColumn>
 
   abstract makeColumn(e0: number, e1: number): TColumn;
 
-  get [0]() {
+  get 0() {
     return this.columns[0].x;
   }
 
-  get [1]() {
+  get 1() {
     return this.columns[0].y;
   }
 
-  get [2]() {
+  get 2() {
     return this.columns[1].x;
   }
 
-  get [3]() {
+  get 3() {
     return this.columns[1].y;
   }
 
-  set [0](value: number) {
+  set 0(value: number) {
     this.columns[0].x = value;
   }
 
-  set [1](value: number) {
+  set 1(value: number) {
     this.columns[0].y = value;
   }
 
-  set [2](value: number) {
+  set 2(value: number) {
     this.columns[1].x = value;
   }
 
-  set [3](value: number) {
+  set 3(value: number) {
     this.columns[1].y = value;
   }
 
@@ -173,12 +170,19 @@ abstract class mat2x2Impl<TColumn extends v2f> extends MatBase<TColumn>
     yield this[3];
   }
 
-  '~resolve'(): string {
-    return `${this.kind}(${
-      Array.from({ length: this.length })
-        .map((_, i) => this[i])
-        .join(', ')
-    })`;
+  [$resolve](): ResolvedSnippet {
+    return snip(
+      `${this.kind}(${
+        Array.from({ length: this.length })
+          .map((_, i) => this[i])
+          .join(', ')
+      })`,
+      mat2x2f,
+    );
+  }
+
+  toString() {
+    return this[$resolve]().value;
   }
 }
 
@@ -221,95 +225,95 @@ abstract class mat3x3Impl<TColumn extends v3f> extends MatBase<TColumn>
 
   abstract makeColumn(x: number, y: number, z: number): TColumn;
 
-  get [0]() {
+  get 0() {
     return this.columns[0].x;
   }
 
-  get [1]() {
+  get 1() {
     return this.columns[0].y;
   }
 
-  get [2]() {
+  get 2() {
     return this.columns[0].z;
   }
 
-  get [3]() {
+  get 3() {
     return 0;
   }
 
-  get [4]() {
+  get 4() {
     return this.columns[1].x;
   }
 
-  get [5]() {
+  get 5() {
     return this.columns[1].y;
   }
 
-  get [6]() {
+  get 6() {
     return this.columns[1].z;
   }
 
-  get [7]() {
+  get 7() {
     return 0;
   }
 
-  get [8]() {
+  get 8() {
     return this.columns[2].x;
   }
 
-  get [9]() {
+  get 9() {
     return this.columns[2].y;
   }
 
-  get [10]() {
+  get 10() {
     return this.columns[2].z;
   }
 
-  get [11]() {
+  get 11() {
     return 0;
   }
 
-  set [0](value: number) {
+  set 0(value: number) {
     this.columns[0].x = value;
   }
 
-  set [1](value: number) {
+  set 1(value: number) {
     this.columns[0].y = value;
   }
 
-  set [2](value: number) {
+  set 2(value: number) {
     this.columns[0].z = value;
   }
 
-  set [3](_: number) {}
+  set 3(_: number) {}
 
-  set [4](value: number) {
+  set 4(value: number) {
     this.columns[1].x = value;
   }
 
-  set [5](value: number) {
+  set 5(value: number) {
     this.columns[1].y = value;
   }
 
-  set [6](value: number) {
+  set 6(value: number) {
     this.columns[1].z = value;
   }
 
-  set [7](_: number) {}
+  set 7(_: number) {}
 
-  set [8](value: number) {
+  set 8(value: number) {
     this.columns[2].x = value;
   }
 
-  set [9](value: number) {
+  set 9(value: number) {
     this.columns[2].y = value;
   }
 
-  set [10](value: number) {
+  set 10(value: number) {
     this.columns[2].z = value;
   }
 
-  set [11](_: number) {}
+  set 11(_: number) {}
 
   *[Symbol.iterator]() {
     for (let i = 0; i < 12; i++) {
@@ -317,10 +321,17 @@ abstract class mat3x3Impl<TColumn extends v3f> extends MatBase<TColumn>
     }
   }
 
-  '~resolve'(): string {
-    return `${this.kind}(${this[0]}, ${this[1]}, ${this[2]}, ${this[4]}, ${
-      this[5]
-    }, ${this[6]}, ${this[8]}, ${this[9]}, ${this[10]})`;
+  [$resolve](): ResolvedSnippet {
+    return snip(
+      `${this.kind}(${this[0]}, ${this[1]}, ${this[2]}, ${this[4]}, ${
+        this[5]
+      }, ${this[6]}, ${this[8]}, ${this[9]}, ${this[10]})`,
+      mat3x3f,
+    );
+  }
+
+  toString() {
+    return this[$resolve]().value;
   }
 }
 
@@ -372,131 +383,131 @@ abstract class mat4x4Impl<TColumn extends v4f> extends MatBase<TColumn>
   public readonly length = 16;
   [n: number]: number;
 
-  get [0]() {
+  get 0() {
     return this.columns[0].x;
   }
 
-  get [1]() {
+  get 1() {
     return this.columns[0].y;
   }
 
-  get [2]() {
+  get 2() {
     return this.columns[0].z;
   }
 
-  get [3]() {
+  get 3() {
     return this.columns[0].w;
   }
 
-  get [4]() {
+  get 4() {
     return this.columns[1].x;
   }
 
-  get [5]() {
+  get 5() {
     return this.columns[1].y;
   }
 
-  get [6]() {
+  get 6() {
     return this.columns[1].z;
   }
 
-  get [7]() {
+  get 7() {
     return this.columns[1].w;
   }
 
-  get [8]() {
+  get 8() {
     return this.columns[2].x;
   }
 
-  get [9]() {
+  get 9() {
     return this.columns[2].y;
   }
 
-  get [10]() {
+  get 10() {
     return this.columns[2].z;
   }
 
-  get [11]() {
+  get 11() {
     return this.columns[2].w;
   }
 
-  get [12]() {
+  get 12() {
     return this.columns[3].x;
   }
 
-  get [13]() {
+  get 13() {
     return this.columns[3].y;
   }
 
-  get [14]() {
+  get 14() {
     return this.columns[3].z;
   }
 
-  get [15]() {
+  get 15() {
     return this.columns[3].w;
   }
 
-  set [0](value: number) {
+  set 0(value: number) {
     this.columns[0].x = value;
   }
 
-  set [1](value: number) {
+  set 1(value: number) {
     this.columns[0].y = value;
   }
 
-  set [2](value: number) {
+  set 2(value: number) {
     this.columns[0].z = value;
   }
 
-  set [3](value: number) {
+  set 3(value: number) {
     this.columns[0].w = value;
   }
 
-  set [4](value: number) {
+  set 4(value: number) {
     this.columns[1].x = value;
   }
 
-  set [5](value: number) {
+  set 5(value: number) {
     this.columns[1].y = value;
   }
 
-  set [6](value: number) {
+  set 6(value: number) {
     this.columns[1].z = value;
   }
 
-  set [7](value: number) {
+  set 7(value: number) {
     this.columns[1].w = value;
   }
 
-  set [8](value: number) {
+  set 8(value: number) {
     this.columns[2].x = value;
   }
 
-  set [9](value: number) {
+  set 9(value: number) {
     this.columns[2].y = value;
   }
 
-  set [10](value: number) {
+  set 10(value: number) {
     this.columns[2].z = value;
   }
 
-  set [11](value: number) {
+  set 11(value: number) {
     this.columns[2].w = value;
   }
 
-  set [12](value: number) {
+  set 12(value: number) {
     this.columns[3].x = value;
   }
 
-  set [13](value: number) {
+  set 13(value: number) {
     this.columns[3].y = value;
   }
 
-  set [14](value: number) {
+  set 14(value: number) {
     this.columns[3].z = value;
   }
 
-  set [15](value: number) {
+  set 15(value: number) {
     this.columns[3].w = value;
   }
 
@@ -506,12 +517,19 @@ abstract class mat4x4Impl<TColumn extends v4f> extends MatBase<TColumn>
     }
   }
 
-  '~resolve'(): string {
-    return `${this.kind}(${
-      Array.from({ length: this.length })
-        .map((_, i) => this[i])
-        .join(', ')
-    })`;
+  [$resolve](): ResolvedSnippet {
+    return snip(
+      `${this.kind}(${
+        Array.from({ length: this.length })
+          .map((_, i) => this[i])
+          .join(', ')
+      })`,
+      mat4x4f,
+    );
+  }
+
+  toString() {
+    return this[$resolve]().value;
   }
 }
 
@@ -534,14 +552,8 @@ class mat4x4fImpl extends mat4x4Impl<v4f> {
 export const identity2 = createDualImpl(
   // CPU implementation
   () => mat2x2f(1, 0, 0, 1),
-  // GPU implementation
-  () => ({
-    value: `mat4x4f(
-      1.0, 0.0,
-      0.0, 1.0
-    )`,
-    dataType: mat2x2f,
-  }),
+  // CODEGEN implementation
+  () => snip('mat2x2f(1, 0, 0, 1)', mat2x2f),
   'identity2',
 );
 
@@ -552,15 +564,8 @@ export const identity2 = createDualImpl(
 export const identity3 = createDualImpl(
   // CPU implementation
   () => mat3x3f(1, 0, 0, 0, 1, 0, 0, 0, 1),
-  // GPU implementation
-  () => ({
-    value: `mat4x4f(
-      1.0, 0.0, 0.0,
-      0.0, 1.0, 0.0,
-      0.0, 0.0, 1.0,
-    )`,
-    dataType: mat3x3f,
-  }),
+  // CODEGEN implementation
+  () => snip('mat3x3f(1, 0, 0, 0, 1, 0, 0, 0, 1)', mat3x3f),
   'identity3',
 );
 
@@ -571,16 +576,9 @@ export const identity3 = createDualImpl(
 export const identity4 = createDualImpl(
   // CPU implementation
   () => mat4x4f(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),
-  // GPU implementation
-  () => ({
-    value: `mat4x4f(
-      1.0, 0.0, 0.0, 0.0,
-      0.0, 1.0, 0.0, 0.0,
-      0.0, 0.0, 1.0, 0.0,
-      0.0, 0.0, 0.0, 1.0
-    )`,
-    dataType: mat4x4f,
-  }),
+  // CODEGEN implementation
+  () =>
+    snip('mat4x4f(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)', mat4x4f),
   'identity4',
 );
 
@@ -605,16 +603,12 @@ export const translation4 = createDualImpl(
       0, 0, 1, 0,
       vector.x, vector.y, vector.z, 1,
     ),
-  // GPU implementation
-  (vector) => ({
-    value: `mat4x4f(
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        ${vector.value}.x, ${vector.value}.y, ${vector.value}.z, 1
-      )`,
-    dataType: mat4x4f,
-  }),
+  // CODEGEN implementation
+  (v) =>
+    snip(
+      stitch`mat4x4f(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, ${v}.x, ${v}.y, ${v}.z, 1)`,
+      mat4x4f,
+    ),
   'translation4',
 );
 
@@ -633,16 +627,12 @@ export const scaling4 = createDualImpl(
       0, 0, vector.z, 0,
       0, 0, 0, 1,
     ),
-  // GPU implementation
-  (vector) => ({
-    value: `mat4x4f(
-        ${vector.value}.x, 0, 0, 0,
-        0, ${vector.value}.y, 0, 0,
-        0, 0, ${vector.value}.z, 0,
-        0, 0, 0, 1
-      )`,
-    dataType: mat4x4f,
-  }),
+  // CODEGEN implementation
+  (v) =>
+    snip(
+      stitch`mat4x4f(${v}.x, 0, 0, 0, 0, ${v}.y, 0, 0, 0, 0, ${v}.z, 0, 0, 0, 0, 1)`,
+      mat4x4f,
+    ),
   'scaling4',
 );
 
@@ -661,15 +651,10 @@ export const rotationX4 = createDualImpl(
       0, -Math.sin(a), Math.cos(a), 0,
       0, 0, 0, 1,
     ),
-  // GPU implementation
+  // CODEGEN implementation
   (a) =>
     snip(
-      `mat4x4f(
-        1, 0, 0, 0,
-        0, cos(${a.value}), sin(${a.value}), 0,
-        0, -sin(${a.value}), cos(${a.value}), 0,
-        0, 0, 0, 1
-      )`,
+      stitch`mat4x4f(1, 0, 0, 0, 0, cos(${a}), sin(${a}), 0, 0, -sin(${a}), cos(${a}), 0, 0, 0, 0, 1)`,
       mat4x4f,
     ),
   'rotationX4',
@@ -690,15 +675,10 @@ export const rotationY4 = createDualImpl(
       Math.sin(a), 0, Math.cos(a), 0,
       0, 0, 0, 1,
     ),
-  // GPU implementation
+  // CODEGEN implementation
   (a) =>
     snip(
-      `mat4x4f(
-        cos(${a.value}), 0, -sin(${a.value}), 0,
-        0, 1, 0, 0,
-        sin(${a.value}), 0, cos(${a.value}), 0,
-        0, 0, 0, 1
-      )`,
+      stitch`mat4x4f(cos(${a}), 0, -sin(${a}), 0, 0, 1, 0, 0, sin(${a}), 0, cos(${a}), 0, 0, 0, 0, 1)`,
       mat4x4f,
     ),
   'rotationY4',
@@ -719,15 +699,10 @@ export const rotationZ4 = createDualImpl(
       0, 0, 1, 0,
       0, 0, 0, 1,
     ),
-  // GPU implementation
+  // CODEGEN implementation
   (a) =>
     snip(
-      `mat4x4f(
-        cos(${a.value}), sin(${a.value}), 0, 0,
-        -sin(${a.value}), cos(${a.value}), 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-      )`,
+      stitch`mat4x4f(cos(${a}), sin(${a}), 0, 0, -sin(${a}), cos(${a}), 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)`,
       mat4x4f,
     ),
   'rotationZ4',

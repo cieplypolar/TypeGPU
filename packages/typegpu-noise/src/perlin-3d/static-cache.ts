@@ -5,7 +5,7 @@ import {
   getJunctionGradientSlot,
 } from './algorithm.ts';
 
-const MemorySchema = (n: number) => d.arrayOf(d.vec3f, n);
+const MemorySchema = d.arrayOf(d.vec3f);
 
 export interface StaticPerlin3DCache {
   readonly getJunctionGradient: TgpuFn<(pos: d.Vec3i) => d.Vec3f>;
@@ -18,7 +18,7 @@ export interface StaticPerlin3DCache {
  * A statically-sized cache for perlin noise generation, which reduces the amount of redundant calculations
  * if sampling is done more than once. If you'd like to change the size of the cache at runtime, see `perlin3d.dynamicCacheConfig`.
  *
- * ### Basic usage
+ * --- Basic usage
  * @example
  * ```ts
  * const mainFragment = tgpu.fragmentFn({ out: d.vec4f })(() => {
@@ -35,7 +35,8 @@ export interface StaticPerlin3DCache {
  *   .createPipeline();
  * ```
  *
- * ### Wrapped coordinates
+ * --- Wrapped coordinates
+ *
  * If the noise generator samples outside of the bounds of this cache, the space is wrapped around.
  * @example
  * ```ts
@@ -64,24 +65,17 @@ export function staticCache(options: {
   const memoryReadonly = memoryBuffer.as('readonly');
   const memoryMutable = memoryBuffer.as('mutable');
 
-  const mainCompute = tgpu['~unstable'].computeFn({
-    workgroupSize: [1, 1, 1],
-    in: { gid: d.builtin.globalInvocationId },
-  })((input) => {
-    const idx = input.gid.x +
-      input.gid.y * size.x +
-      input.gid.z * size.x * size.y;
-
-    memoryMutable.value[idx] = computeJunctionGradient(
-      d.vec3i(input.gid.xyz),
-    );
-  });
-
   const computePipeline = root['~unstable']
-    .withCompute(mainCompute)
-    .createPipeline();
+    .createGuardedComputePipeline((x, y, z) => {
+      'use gpu';
+      const idx = x +
+        y * size.x +
+        z * size.x * size.y;
 
-  computePipeline.dispatchWorkgroups(size.x, size.y, size.z);
+      memoryMutable.$[idx] = computeJunctionGradient(d.vec3i(x, y, z));
+    });
+
+  computePipeline.dispatchThreads(size.x, size.y, size.z);
 
   const getJunctionGradient = tgpu.fn([d.vec3i], d.vec3f)((pos) => {
     const size_i = d.vec3i(size);
@@ -90,7 +84,7 @@ export function staticCache(options: {
     const z = (pos.z % size_i.z + size_i.z) % size_i.z;
 
     return memoryReadonly
-      .value[x + y * size_i.x + z * size_i.x * size_i.y] as d.v3f;
+      .$[x + y * size_i.x + z * size_i.x * size_i.y] as d.v3f;
   });
 
   return {

@@ -14,13 +14,14 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 10.x
           run_install: false
 
       - name: Install Node.js 22.x
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Clone benchmarking repo
         uses: actions/checkout@v5
@@ -53,6 +54,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
+          version: 10.x
           run_install: false
 
       - name: Clone benchmarking repo
@@ -72,7 +74,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '>=3.11'
+          python-version: ">=3.11"
 
       - name: Create venv
         run: |

@@ -3,8 +3,7 @@ import { Image } from "astro:assets";
 import PageLayout from "../../layouts/PageLayout.astro";
 import TypeGPULogoDark from "../../assets/typegpu-logo-dark.svg";
 
-const remotePlot =
-    "https://raw.githubusercontent.com/cieplypolar/workflows/main/plots/combined-resolveDuration.png";
+const remotePlot = `https://raw.githubusercontent.com/cieplypolar/workflows/main/plots/combined-resolveDuration.png?t=${Date.now()}`;
 const title = "TypeGPU — resolve complexity";
 ---
 

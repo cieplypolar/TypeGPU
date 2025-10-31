@@ -1,0 +1,32 @@
+---
+import { Image } from "astro:assets";
+import PageLayout from "../../layouts/PageLayout.astro";
+import TypeGPULogoDark from "../../assets/typegpu-logo-dark.svg";
+
+const remotePlot =
+    "https://raw.githubusercontent.com/cieplypolar/workflows/main/plots/combined-resolveDuration.png";
+const title = "TypeGPU — resolve complexity";
+---
+
+<PageLayout title={title} theme="dark">
+    <main class="flex flex-col items-center justify-center gap-6 p-6">
+        <h1 class="flex items-center justify-center p-1 min-w-2xs">
+            <a href="/TypeGPU">
+                <Image
+                    src={TypeGPULogoDark}
+                    alt="TypeGPU Logo"
+                    class="w-40 relative"
+                />
+            </a>
+            <p class="text-lg font-sans text-gray-300">— resolve complexity</p>
+        </h1>
+
+        <div class="w-full max-w-2xl">
+            <img
+                src={remotePlot}
+                alt="Combined Resolve Duration Plot"
+                class="w-full rounded-lg shadow-xl border border-gray-700 object-contain"
+            />
+        </div>
+    </main>
+</PageLayout>

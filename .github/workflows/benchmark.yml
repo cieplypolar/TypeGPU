@@ -52,18 +52,17 @@ jobs:
     needs: measure
 
     steps:
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.x
-          run_install: false
-
       - name: Clone benchmarking repo
         uses: actions/checkout@v5
         with:
           repository: ${{ env.BENCHMARK_REPO }}
           ref: main
           token: ${{ secrets.WORKFLOWS_TOKEN }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
 
       - name: Download benchmark data
         uses: actions/download-artifact@v4
@@ -81,6 +80,7 @@ jobs:
           python3 -m venv .venv
 
       - name: Plot
+        shell: bash
         run: |
           pnpm run plot
 

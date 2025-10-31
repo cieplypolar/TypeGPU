@@ -11,18 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.x
-          run_install: false
-
-      - name: Install Node.js 22.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.x
-          cache: "pnpm"
-
       - name: Clone benchmarking repo
         uses: actions/checkout@v5
         with:
@@ -30,6 +18,17 @@ jobs:
           ref: main
           token: ${{ secrets.WORKFLOWS_TOKEN }}
           path: benchmark
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: "pnpm"
 
       - name: Install deps
         run: |

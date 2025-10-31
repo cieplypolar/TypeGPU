@@ -33,6 +33,11 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
 
+      - name: Install Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Run benchmarks
         run: |
           pnpm run measure

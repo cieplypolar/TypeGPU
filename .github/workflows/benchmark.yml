@@ -82,6 +82,8 @@ jobs:
       - name: Plot
         shell: bash
         run: |
+          . .venv/bin/activate
+          pip install -r requirements.txt
           pnpm run plot
 
       - name: Commit and push results and plot

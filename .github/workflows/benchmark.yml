@@ -1,4 +1,4 @@
-name: Measure resolve duration and plot
+name: Measure resolve duration
 
 on:
   workflow_dispatch:

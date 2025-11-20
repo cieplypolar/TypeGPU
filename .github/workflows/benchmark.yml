@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env:
-  BENCHMARK_REPO: cieplypolar/workflows
+  BENCHMARK_REPO: cieplypolar/typegpu-benchmarker
 
 jobs:
   measure:
@@ -16,7 +16,7 @@ jobs:
         with:
           repository: ${{ env.BENCHMARK_REPO }}
           ref: main
-          token: ${{ secrets.WORKFLOWS_TOKEN }}
+          token: ${{ secrets.BENCHMARKER_TEST_TOKEN }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install deps
         run: |
@@ -57,7 +57,7 @@ jobs:
         with:
           repository: ${{ env.BENCHMARK_REPO }}
           ref: main
-          token: ${{ secrets.WORKFLOWS_TOKEN }}
+          token: ${{ secrets.BENCHMARKER_TEST_TOKEN }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -73,7 +73,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '>=3.11'
+          python-version: ">=3.11"
 
       - name: Create venv
         run: |

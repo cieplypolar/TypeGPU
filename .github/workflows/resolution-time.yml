@@ -65,15 +65,15 @@ jobs:
 
       - name: Install dependencies (PR branch)
         working-directory: pr-branch
-        run: pnpm install
+        run: pnpm install && node node_modules/bun/install.js
 
       - name: Install dependencies (target branch)
         working-directory: target-branch
-        run: pnpm install
+        run: pnpm install && node node_modules/bun/install.js
 
       - name: Install dependencies (release branch)
         working-directory: release-branch
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile && node node_modules/bun/install.js
 
       - name: Run benchmark (PR branch)
         working-directory: pr-branch
@@ -87,23 +87,52 @@ jobs:
         working-directory: release-branch
         run: pnpm --filter resolution-time resolution-time
 
-      - name: Generate chart
+      - name: Generate chart (random)
         run: |
           node pr-branch/apps/resolution-time/generateChart.ts \
             --input "PR:pr-branch/apps/resolution-time/results-random.json" \
             --input "main:target-branch/apps/resolution-time/results-random.json" \
             --input "release:release-branch/apps/resolution-time/results-random.json" \
-            --title "Function Resolution Time" \
+            --title "Random Branching" \
             --xAxisTitle "max depth" \
             --yAxisTitle "time (ms)" \
             --output chart-random.md
+
+      - name: Generate chart (linear)
+        run: |
+          node pr-branch/apps/resolution-time/generateChart.ts \
+            --input "PR:pr-branch/apps/resolution-time/results-linear-recursion.json" \
+            --input "main:target-branch/apps/resolution-time/results-linear-recursion.json" \
+            --input "release:release-branch/apps/resolution-time/results-linear-recursion.json" \
+            --title "Linear Recursion" \
+            --xAxisTitle "max depth" \
+            --yAxisTitle "time (ms)" \
+            --output chart-linear.md
+
+      - name: Generate chart (max depth)
+        run: |
+          node pr-branch/apps/resolution-time/generateChart.ts \
+            --input "PR:pr-branch/apps/resolution-time/results-max-depth.json" \
+            --input "main:target-branch/apps/resolution-time/results-max-depth.json" \
+            --input "release:release-branch/apps/resolution-time/results-max-depth.json" \
+            --title "Full Tree (Max Depth)" \
+            --xAxisTitle "max depth" \
+            --yAxisTitle "time (ms)" \
+            --output chart-max-depth.md
 
       - name: Prepare comment
         run: |
           {
             echo "## Resolution Time Benchmark"
             echo ""
+            echo "### Random Branching"
             cat chart-random.md
+            echo ""
+            echo "### Linear Recursion"
+            cat chart-linear.md
+            echo ""
+            echo "### Full Binary Tree (Max Depth)"
+            cat chart-max-depth.md
           } > comparison.md
 
       - name: Comment PR with results

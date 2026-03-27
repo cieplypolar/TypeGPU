@@ -8,7 +8,7 @@ const counter = root.createMutable(d.u32);
 // A 0-dimensional compute pipeline
 const incrementPipeline = root.createGuardedComputePipeline(() => {
   'use gpu';
-  counter.$ += 10;
+  counter.$ += 1;
 });
 
 async function increment() {

@@ -289,7 +289,10 @@ for (const depth of DEPTHS) {
     results,
   );
 }
-writeFileSync(resolve(outDir, 'results-max-depth.json'), JSON.stringify(results.length / 2), null, 2));
+writeFileSync(
+  resolve(outDir, 'results-max-depth.json'),
+  JSON.stringify(results.slice(Math.floor(results.length / 2), results.length), null, 2),
+);
 results.length = 0;
 
 // resolution time vs linear recursion (path)
@@ -307,7 +310,7 @@ for (const depth of DEPTHS) {
 }
 writeFileSync(
   resolve(outDir, 'results-linear-recursion.json'),
-  JSON.stringify(results.splice(results.length / 2), null, 2),
+  JSON.stringify(results.slice(Math.floor(results.length / 2), results.length), null, 2),
 );
 results.length = 0;
 
@@ -324,5 +327,8 @@ for (const depth of DEPTHS) {
     results,
   );
 }
-writeFileSync(resolve(outDir, 'results-random.json'), JSON.stringify(results.length / 2), null, 2));
+writeFileSync(
+  resolve(outDir, 'results-random.json'),
+  JSON.stringify(results.slice(Math.floor(results.length / 2), results.length), null, 2),
+);
 results.length = 0;

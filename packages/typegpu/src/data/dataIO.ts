@@ -2,13 +2,7 @@ import type { ISerialInput, ISerialOutput } from 'typed-binary';
 import type { Infer, InferRecord } from '../shared/repr.ts';
 import alignIO from './alignIO.ts';
 import { alignmentOf, customAlignmentOf } from './alignmentOf.ts';
-import type {
-  AnyConcreteData,
-  AnyData,
-  Disarray,
-  LooseDecorated,
-  Unstruct,
-} from './dataTypes.ts';
+import type { AnyConcreteData, AnyData, Disarray, LooseDecorated, Unstruct } from './dataTypes.ts';
 import { mat2x2f, mat3x3f, mat4x4f } from './matrix.ts';
 import { sizeOf } from './sizeOf.ts';
 import {
@@ -39,15 +33,11 @@ type DataReader<TSchema extends wgsl.BaseData> = (
 ) => Infer<TSchema>;
 
 type CompleteDataWriters = {
-  [TType in AnyConcreteData['type']]: DataWriter<
-    Extract<AnyData, { readonly type: TType }>
-  >;
+  [TType in AnyConcreteData['type']]: DataWriter<Extract<AnyData, { readonly type: TType }>>;
 };
 
 type CompleteDataReaders = {
-  [TType in AnyConcreteData['type']]: DataReader<
-    Extract<AnyData, { readonly type: TType }>
-  >;
+  [TType in AnyConcreteData['type']]: DataReader<Extract<AnyData, { readonly type: TType }>>;
 };
 
 const dataWriters = {
@@ -76,23 +66,23 @@ const dataWriters = {
   },
 
   vec2f(output, _, value: wgsl.v2f) {
-    output.writeFloat32(value.x);
-    output.writeFloat32(value.y);
+    output.writeFloat32(value[0]);
+    output.writeFloat32(value[1]);
   },
 
   vec2h(output, _, value: wgsl.v2h) {
-    output.writeFloat16(value.x);
-    output.writeFloat16(value.y);
+    output.writeFloat16(value[0]);
+    output.writeFloat16(value[1]);
   },
 
   vec2i(output, _, value: wgsl.v2i) {
-    output.writeInt32(value.x);
-    output.writeInt32(value.y);
+    output.writeInt32(value[0]);
+    output.writeInt32(value[1]);
   },
 
   vec2u(output, _, value: wgsl.v2u) {
-    output.writeUint32(value.x);
-    output.writeUint32(value.y);
+    output.writeUint32(value[0]);
+    output.writeUint32(value[1]);
   },
 
   'vec2<bool>'() {
@@ -100,27 +90,27 @@ const dataWriters = {
   },
 
   vec3f(output, _, value: wgsl.v3f) {
-    output.writeFloat32(value.x);
-    output.writeFloat32(value.y);
-    output.writeFloat32(value.z);
+    output.writeFloat32(value[0]);
+    output.writeFloat32(value[1]);
+    output.writeFloat32(value[2]);
   },
 
   vec3h(output, _, value: wgsl.v3h) {
-    output.writeFloat16(value.x);
-    output.writeFloat16(value.y);
-    output.writeFloat16(value.z);
+    output.writeFloat16(value[0]);
+    output.writeFloat16(value[1]);
+    output.writeFloat16(value[2]);
   },
 
   vec3i(output, _, value: wgsl.v3i) {
-    output.writeInt32(value.x);
-    output.writeInt32(value.y);
-    output.writeInt32(value.z);
+    output.writeInt32(value[0]);
+    output.writeInt32(value[1]);
+    output.writeInt32(value[2]);
   },
 
   vec3u(output, _, value: wgsl.v3u) {
-    output.writeUint32(value.x);
-    output.writeUint32(value.y);
-    output.writeUint32(value.z);
+    output.writeUint32(value[0]);
+    output.writeUint32(value[1]);
+    output.writeUint32(value[2]);
   },
 
   'vec3<bool>'() {
@@ -128,31 +118,31 @@ const dataWriters = {
   },
 
   vec4f(output, _, value: wgsl.v4f) {
-    output.writeFloat32(value.x);
-    output.writeFloat32(value.y);
-    output.writeFloat32(value.z);
-    output.writeFloat32(value.w);
+    output.writeFloat32(value[0]);
+    output.writeFloat32(value[1]);
+    output.writeFloat32(value[2]);
+    output.writeFloat32(value[3]);
   },
 
   vec4h(output, _, value: wgsl.v4h) {
-    output.writeFloat16(value.x);
-    output.writeFloat16(value.y);
-    output.writeFloat16(value.z);
-    output.writeFloat16(value.w);
+    output.writeFloat16(value[0]);
+    output.writeFloat16(value[1]);
+    output.writeFloat16(value[2]);
+    output.writeFloat16(value[3]);
   },
 
   vec4i(output, _, value: wgsl.v4i) {
-    output.writeInt32(value.x);
-    output.writeInt32(value.y);
-    output.writeInt32(value.z);
-    output.writeInt32(value.w);
+    output.writeInt32(value[0]);
+    output.writeInt32(value[1]);
+    output.writeInt32(value[2]);
+    output.writeInt32(value[3]);
   },
 
   vec4u(output, _, value: wgsl.v4u) {
-    output.writeUint32(value.x);
-    output.writeUint32(value.y);
-    output.writeUint32(value.z);
-    output.writeUint32(value.w);
+    output.writeUint32(value[0]);
+    output.writeUint32(value[1]);
+    output.writeUint32(value[2]);
+    output.writeUint32(value[3]);
   },
 
   'vec4<bool>'() {
@@ -177,17 +167,13 @@ const dataWriters = {
     }
   },
 
-  struct(
-    output,
-    schema: wgsl.WgslStruct,
-    value: InferRecord<Record<string, wgsl.BaseData>>,
-  ) {
+  struct(output, schema: wgsl.WgslStruct, value: InferRecord<Record<string, wgsl.BaseData>>) {
     const alignment = alignmentOf(schema);
     alignIO(output, alignment);
 
     for (const [key, property] of Object.entries(schema.propTypes)) {
-      alignIO(output, alignmentOf(property as wgsl.BaseData));
-      writeData(output, property as wgsl.BaseData, value[key]);
+      alignIO(output, alignmentOf(property));
+      writeData(output, property, value[key]);
     }
 
     alignIO(output, alignment);
@@ -420,18 +406,14 @@ const dataWriters = {
     const beginning = output.currentByteOffset;
     for (let i = 0; i < Math.min(schema.elementCount, value.length); i++) {
       alignIO(output, alignment);
-      dataWriters[(schema.elementType as AnyData)?.type]?.(
-        output,
-        schema.elementType,
-        value[i],
-      );
+      dataWriters[(schema.elementType as AnyData)?.type]?.(output, schema.elementType, value[i]);
     }
 
     output.seekTo(beginning + sizeOf(schema));
   },
 
   unstruct(output, schema: Unstruct, value) {
-    const propTypes = schema.propTypes as Record<string, wgsl.BaseData>;
+    const propTypes = schema.propTypes;
     for (const [key, property] of Object.entries(propTypes)) {
       dataWriters[property.type]?.(output, property, value[key]);
     }
@@ -458,6 +440,23 @@ export function writeData<TData extends wgsl.BaseData>(
   schema: TData,
   value: Infer<TData>,
 ): void {
+  if (ArrayBuffer.isView(value)) {
+    const src = value as ArrayBufferView;
+    const expected = sizeOf(schema);
+    if (src.byteLength !== expected) {
+      console.warn(
+        `TypedArray size mismatch: schema expects ${expected} bytes, got ${src.byteLength}. ` +
+          (src.byteLength < expected ? 'Data truncated.' : 'Excess ignored.'),
+      );
+    }
+    const start = output.currentByteOffset;
+    output.writeSlice(
+      new Uint8Array(src.buffer, src.byteOffset, Math.min(src.byteLength, expected)),
+    );
+    output.seekTo(start + expected);
+    return;
+  }
+
   const writer = dataWriters[schema.type];
   if (!writer) {
     throw new Error(`Cannot write data of type '${schema.type}'.`);
@@ -534,12 +533,7 @@ const dataReaders = {
   },
 
   vec4i(input: ISerialInput): wgsl.v4i {
-    return vec4i(
-      input.readInt32(),
-      input.readInt32(),
-      input.readInt32(),
-      input.readInt32(),
-    );
+    return vec4i(input.readInt32(), input.readInt32(), input.readInt32(), input.readInt32());
   },
 
   vec2u(input): wgsl.v2u {
@@ -551,12 +545,7 @@ const dataReaders = {
   },
 
   vec4u(input: ISerialInput): wgsl.v4u {
-    return vec4u(
-      input.readUint32(),
-      input.readUint32(),
-      input.readUint32(),
-      input.readUint32(),
-    );
+    return vec4u(input.readUint32(), input.readUint32(), input.readUint32(), input.readUint32());
   },
 
   'vec2<bool>'() {
@@ -631,7 +620,7 @@ const dataReaders = {
     alignIO(input, alignment);
     const result = {} as Record<string, unknown>;
 
-    const propTypes = schema.propTypes as Record<string, wgsl.BaseData>;
+    const propTypes = schema.propTypes;
     for (const [key, property] of Object.entries(propTypes)) {
       alignIO(input, alignmentOf(property));
       result[key] = readData(input, property);
@@ -682,8 +671,7 @@ const dataReaders = {
 
   uint8: (i) => i.readUint8(),
   uint8x2: (i) => vec2u(i.readUint8(), i.readUint8()),
-  uint8x4: (i) =>
-    vec4u(i.readUint8(), i.readUint8(), i.readUint8(), i.readUint8()),
+  uint8x4: (i) => vec4u(i.readUint8(), i.readUint8(), i.readUint8(), i.readUint8()),
   sint8: (i) => i.readInt8(),
   sint8x2: (i) => {
     return vec2i(i.readInt8(), i.readInt8());
@@ -692,29 +680,17 @@ const dataReaders = {
   unorm8: (i) => i.readUint8() / 255,
   unorm8x2: (i) => vec2f(i.readUint8() / 255, i.readUint8() / 255),
   unorm8x4: (i) =>
-    vec4f(
-      i.readUint8() / 255,
-      i.readUint8() / 255,
-      i.readUint8() / 255,
-      i.readUint8() / 255,
-    ),
+    vec4f(i.readUint8() / 255, i.readUint8() / 255, i.readUint8() / 255, i.readUint8() / 255),
   snorm8: (i) => i.readInt8() / 127,
   snorm8x2: (i) => vec2f(i.readInt8() / 127, i.readInt8() / 127),
   snorm8x4: (i) =>
-    vec4f(
-      i.readInt8() / 127,
-      i.readInt8() / 127,
-      i.readInt8() / 127,
-      i.readInt8() / 127,
-    ),
+    vec4f(i.readInt8() / 127, i.readInt8() / 127, i.readInt8() / 127, i.readInt8() / 127),
   uint16: (i) => i.readUint16(),
   uint16x2: (i) => vec2u(i.readUint16(), i.readUint16()),
-  uint16x4: (i) =>
-    vec4u(i.readUint16(), i.readUint16(), i.readUint16(), i.readUint16()),
+  uint16x4: (i) => vec4u(i.readUint16(), i.readUint16(), i.readUint16(), i.readUint16()),
   sint16: (i) => i.readInt16(),
   sint16x2: (i) => vec2i(i.readInt16(), i.readInt16()),
-  sint16x4: (i) =>
-    vec4i(i.readInt16(), i.readInt16(), i.readInt16(), i.readInt16()),
+  sint16x4: (i) => vec4i(i.readInt16(), i.readInt16(), i.readInt16(), i.readInt16()),
   unorm16: (i) => i.readUint16() / 65535,
   unorm16x2: (i) => vec2f(i.readUint16() / 65535, i.readUint16() / 65535),
   unorm16x4: (i) =>
@@ -725,8 +701,7 @@ const dataReaders = {
       i.readUint16() / 65535,
     ),
   snorm16: (i) => i.readInt16() / 32767,
-  snorm16x2: (i): wgsl.v2f =>
-    vec2f(i.readInt16() / 32767, i.readInt16() / 32767),
+  snorm16x2: (i): wgsl.v2f => vec2f(i.readInt16() / 32767, i.readInt16() / 32767),
   snorm16x4: (i): wgsl.v4f =>
     vec4f(
       i.readInt16() / 32767,
@@ -738,23 +713,19 @@ const dataReaders = {
     return i.readFloat16();
   },
   float16x2: (i) => vec2f(i.readFloat16(), i.readFloat16()),
-  float16x4: (i) =>
-    vec4f(i.readFloat16(), i.readFloat16(), i.readFloat16(), i.readFloat16()),
+  float16x4: (i) => vec4f(i.readFloat16(), i.readFloat16(), i.readFloat16(), i.readFloat16()),
   float32: (i) => i.readFloat32(),
   float32x2: (i) => vec2f(i.readFloat32(), i.readFloat32()),
   float32x3: (i) => vec3f(i.readFloat32(), i.readFloat32(), i.readFloat32()),
-  float32x4: (i) =>
-    vec4f(i.readFloat32(), i.readFloat32(), i.readFloat32(), i.readFloat32()),
+  float32x4: (i) => vec4f(i.readFloat32(), i.readFloat32(), i.readFloat32(), i.readFloat32()),
   uint32: (i) => i.readUint32(),
   uint32x2: (i) => vec2u(i.readUint32(), i.readUint32()),
   uint32x3: (i) => vec3u(i.readUint32(), i.readUint32(), i.readUint32()),
-  uint32x4: (i) =>
-    vec4u(i.readUint32(), i.readUint32(), i.readUint32(), i.readUint32()),
+  uint32x4: (i) => vec4u(i.readUint32(), i.readUint32(), i.readUint32(), i.readUint32()),
   sint32: (i) => i.readInt32(),
   sint32x2: (i) => vec2i(i.readInt32(), i.readInt32()),
   sint32x3: (i) => vec3i(i.readInt32(), i.readInt32(), i.readInt32()),
-  sint32x4: (i) =>
-    vec4i(i.readInt32(), i.readInt32(), i.readInt32(), i.readInt32()),
+  sint32x4: (i) => vec4i(i.readInt32(), i.readInt32(), i.readInt32(), i.readInt32()),
   'unorm10-10-10-2'(i) {
     const packed = i.readUint32();
     const r = (packed >> 22) / 1023;
@@ -774,7 +745,7 @@ const dataReaders = {
   unstruct(input, schema: Unstruct) {
     const result = {} as Record<string, unknown>;
 
-    const propTypes = schema.propTypes as Record<string, wgsl.BaseData>;
+    const propTypes = schema.propTypes;
     for (const [key, property] of Object.entries(propTypes)) {
       result[key] = readData(input, property);
     }
@@ -810,9 +781,7 @@ export function readData<TData extends wgsl.BaseData>(
   input: ISerialInput,
   schema: TData,
 ): Infer<TData> {
-  const reader = (dataReaders as Record<string, unknown>)[
-    schema.type
-  ] as DataReader<TData>;
+  const reader = (dataReaders as Record<string, unknown>)[schema.type] as DataReader<TData>;
   if (!reader) {
     throw new Error(`Cannot read data of type '${schema.type}'.`);
   }

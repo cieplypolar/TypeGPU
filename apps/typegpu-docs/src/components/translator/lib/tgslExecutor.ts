@@ -5,6 +5,7 @@ import { SANDBOX_MODULES } from '../../../utils/examples/sandboxModules.ts';
 
 const moduleImports = {
   'typed-binary': 'https://esm.sh/typed-binary@latest',
+  'tsover-runtime': 'https://esm.sh/tsover-runtime@latest',
 } as Record<string, string>;
 
 type TgslModule = Record<string, unknown>;
@@ -12,7 +13,10 @@ type TgslModule = Record<string, unknown>;
 async function executeTgslModule(tgslCode: string): Promise<TgslModule> {
   const result = await bundle(
     {
-      ...pipe(SANDBOX_MODULES, mapValues((val) => val.import)),
+      ...pipe(
+        SANDBOX_MODULES,
+        mapValues((val) => val.import),
+      ),
       '/shader.ts': { content: tgslCode },
       '/index.ts': {
         content: `
@@ -27,7 +31,7 @@ async function executeTgslModule(tgslCode: string): Promise<TgslModule> {
     ['./index.ts'],
     {
       plugins: [rolldownPlugin({})],
-      external: ['typed-binary'],
+      external: ['typed-binary', 'tsover-runtime'],
     },
   );
 
@@ -59,9 +63,8 @@ export async function executeTgslCode(tgslCode: string): Promise<string> {
   } catch (error) {
     console.error(error);
     throw new Error(
-      `Failed to execute TGSL code: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      `Failed to execute TGSL code: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
     );
   }
 }

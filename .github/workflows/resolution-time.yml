@@ -122,13 +122,10 @@ jobs:
           {
             echo "## Resolution Time Benchmark"
             echo ""
-            echo "### Random Branching"
             cat chart-random.md
             echo ""
-            echo "### Linear Recursion"
             cat chart-linear.md
             echo ""
-            echo "### Full Binary Tree (Max Depth)"
             cat chart-max-depth.md
           } > comparison.md
 

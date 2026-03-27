@@ -12,7 +12,7 @@ interface ProcGenConfig {
 }
 
 // default config
-const SAMPLES = 10;
+const SAMPLES = 50;
 const config: ProcGenConfig & { samples: number } = {
   mainBranching: 2,
   branching: 2,

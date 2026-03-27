@@ -24,9 +24,6 @@ jobs:
           version: 10.27.0
           run_install: false
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
@@ -65,15 +62,15 @@ jobs:
 
       - name: Install dependencies (PR branch)
         working-directory: pr-branch
-        run: pnpm install && node node_modules/bun/install.js
+        run: pnpm install && cd apps/resolution-time/node_modules/bun && node install.js
 
       - name: Install dependencies (target branch)
         working-directory: target-branch
-        run: pnpm install && node node_modules/bun/install.js
+        run: pnpm install && cd apps/resolution-time/node_modules/bun && node install.js
 
       - name: Install dependencies (release branch)
         working-directory: release-branch
-        run: pnpm install --no-frozen-lockfile && node node_modules/bun/install.js
+        run: pnpm install --no-frozen-lockfile && cd apps/resolution-time/node_modules/bun && node install.js
 
       - name: Run benchmark (PR branch)
         working-directory: pr-branch
